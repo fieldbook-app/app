@@ -1451,7 +1451,8 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   function fillSahaSub(main) {
     const sS = $('saha-sub'), subs = (main && sahaSt.subs[main]) || [], cur = sS.value;
     if (!subs.length) { sS.style.display = 'none'; sS.innerHTML = ''; return false; }
-    sS.innerHTML = '<option value="" disabled selected>' + escapeHtml(L2('Alt proje seçin…', 'Выберите подпроект…')) + '</option>' + subs.map(function (n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
+    const allOpt = smProjKeyExact(main) && subs.indexOf(main) < 0 ? '<option value="' + escapeHtml(main) + '">' + escapeHtml(main + ' — ' + L2('tüm alt projeler', 'все подпроекты')) + '</option>' : '';
+    sS.innerHTML = '<option value="" disabled selected>' + escapeHtml(L2('Alt proje seçin…', 'Выберите подпроект…')) + '</option>' + allOpt + subs.map(function (n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
     sS.style.display = ''; if (cur && subs.indexOf(cur) >= 0) sS.value = cur;
     return true;
   }
@@ -1595,7 +1596,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     return h;
   }
   const SM_DATE_SUFFIX = ' — дата';
-  const SM_EXCLUDE = /шил|всего|кол-во|полот|этаж|номер|ширин|высот|остекл|сдано|заказ|отгруж|смонт/i;
+  const SM_EXCLUDE = /подпроект|шил|всего|кол-во|полот|этаж|номер|ширин|высот|остекл|сдано|заказ|отгруж|смонт/i;
   let smWb = null, smFileName = '', smSheets = [], smCur = '', smSel = {}, smUndo = {}, smLabel = {}, smSnap = null;
   let smMode = 'montaj', smTes = {}, smTesUndo = {}, smSok = {}, smSokUndo = {}, smHaz = {}, smHazUndo = {}, smLpFired = false;
   const SM_SOK = 'Sök-tak', SM_INFO_SUF = ' (bilgi)', SM_HAZ = 'Hazır değil', SM_HAZ_WHY = 'Hazır değil sebep';
@@ -1629,12 +1630,12 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     wb.worksheets.forEach(function (ws) {
       if (ws.name === 'Montaj Kayıt' || ws.name === 'Rapor' || ws.name === 'Revizyonlar' || ws.name === 'Revizyon Detay' || ws.name === 'Sök-Tak' || ws.name === 'Hazır Değil' || ws.name === 'Spek') return;
       const h = smHeaderRow(ws); if (!h) return;
-      const cM = h.cM, cB = h.map['блок'], cK = h.map['этаж'];
+      const cM = h.cM, cB = h.map['блок'], cK = h.map['этаж'], cSub = h.map['подпроект'] || 0;
       const rows = [], cancelled = [], cS = h.map['durum'] || null;
       for (let r = h.r + 1; r <= ws.rowCount; r++) {
         const m = smTxt(smVal(ws.getRow(r).getCell(cM)));
         if (!m) continue;
-        const rw = { r: r, mirka: m, blok: smTxt(smVal(ws.getRow(r).getCell(cB))), kat: smVal(ws.getRow(r).getCell(cK)) };
+        const rw = { r: r, mirka: m, blok: smTxt(smVal(ws.getRow(r).getCell(cB))), kat: smVal(ws.getRow(r).getCell(cK)), sub: cSub ? smTxt(smVal(ws.getRow(r).getCell(cSub))) : '' };
         if (cS && smIsCancel(smVal(ws.getRow(r).getCell(cS)))) { cancelled.push(rw); continue; }
         rows.push(rw);
       }
@@ -2630,9 +2631,8 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     if (mp.step < mpN()) { mp.step++; $('mp-err').textContent = ''; mpRender(); return; }
     const pj = $('mp-proj').value.trim();
     if (!pj) return err(L2('Proje no yaz.', 'Введите номер проекта.'));
-    if (!/^\d+\.\d+$/.test(pj)) return err(L2('Alt proje numarası şart: 477.01, 477.02 gibi yaz (sadece "{0}" kabul edilmez).', 'Нужен номер подпроекта: 477.01, 477.02 … (одного «{0}» недостаточно).').replace('{0}', pj));
-    if (!mp.edit && smProjKey(pj)) return err(L2('"{0}" zaten var. Aynı numara tekrar eklenemez.', '«{0}» уже существует. Такой номер добавить нельзя.').replace('{0}', pj));
-    if (!smNameOk(mp.fname, pj)) return err(L2('Dosya adı "{0}" ile başlamıyor.', 'Имя файла не начинается с «{0}».').replace('{0}', pj));
+    if (!/^\d+(\.\d+)?$/.test(pj)) return err(L2('Proje no: 405 (ortak) veya 405.01 (alt proje).', 'Номер: 405 (общая) или 405.01 (подпроект).'));
+    if (!mp.edit && smProjKeyExact(pj)) return err(L2('"{0}" zaten var. Aynı numara tekrar eklenemez.', '«{0}» уже существует. Такой номер добавить нельзя.').replace('{0}', pj));
     if (!mp.total) return err(L2('Hiç kapı yok.', 'Дверей нет.'));
     mp.proj = pj; $('mp-modal').classList.remove('open'); mp.res(mp);
   });
@@ -2727,7 +2727,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   let smProj = '';
   function smActivate(wb, proj, name, note) {
-    smWb = wb; smProj = proj; smFileName = name; smSheets = smParse(wb); smSel = {}; smUndo = {}; smLabel = {}; smTes = {}; smTesUndo = {}; smSok = {}; smSokUndo = {}; smHaz = {}; smHazUndo = {};
+    smWb = wb; smProj = proj; smFileName = name; smSheets = smSubFilter(smParse(wb), proj); smSel = {}; smUndo = {}; smLabel = {}; smTes = {}; smTesUndo = {}; smSok = {}; smSokUndo = {}; smHaz = {}; smHazUndo = {};
     if (!smSheets.length) { $('sm-file-name').textContent = t('cv_none'); smToast(t('cv_none')); return false; }
     smCur = '0|' + smSheets[0].blocks[0];
     $('sm-file-name').textContent = (note ? note + ' | ' : '') + proj + ' — ' + smSheets.map(function (sh) { return sh.name + ': ' + sh.rows.length; }).join(' · ');
@@ -2736,7 +2736,22 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     return true;
   }
   function smNameOk(name, proj) { const esc = proj.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return new RegExp('^\\s*' + esc + '(?![0-9])').test(name); }
-  function smProjKey(name) { const n = norm(name || ''), ix = smIdx(); return n ? (Object.keys(ix).filter(function (k) { return norm(k) === n; })[0] || '') : ''; }
+  let smSubCur = '';
+  function smSubMatch(cell, sel) {
+    const v = String(cell || '').trim(); if (!v) return true;            // пусто — дверь общая для всех подпроектов
+    const want = Number(String(sel).split('.').pop());
+    return v.split(/[,;\/\s]+/).some(function (t) { if (!t) return false; if (t === sel) return true; const n = Number(t.split('.').pop()); return isFinite(n) && n === want; });
+  }
+  function smSubFilter(sheets, proj) {
+    if (!smSubCur || smSubCur === proj || proj.indexOf('.') >= 0) return sheets;
+    sheets.forEach(function (sh) { sh.allRows = sh.rows; sh.rows = sh.rows.filter(function (r) { return smSubMatch(r.sub, smSubCur); }); });
+    return sheets;
+  }
+  function smProjKey(name) {
+    const ex = smProjKeyExact(name); if (ex) return ex;
+    const m = /^(\d+)\.\d+$/.exec(String(name || '').trim()); return m ? smProjKeyExact(m[1]) : '';
+  }
+  function smProjKeyExact(name) { const n = norm(name || ''), ix = smIdx(); return n ? (Object.keys(ix).filter(function (k) { return norm(k) === n; })[0] || '') : ''; }
   async function smLoadProj(k) {
     try {
       const ix = smIdx(), bin = atob(localStorage.getItem('sm_wb_' + k) || ''), u = new Uint8Array(bin.length);
@@ -2745,7 +2760,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       if (smActivate(wb, k, (ix[k] && ix[k].file) || (k + '.xlsx'), '')) smProjList();
     } catch (e) { smToast(L2('Açılamadı: ', 'Не открыть: ') + e.message); }
   }
-  function smAutoLoad() { try { const k = smProjKey(sahaInput.value.trim()); if (k && k !== smProj) smLoadProj(k); } catch (e) {} }
+  function smAutoLoad() { try { const v = sahaInput.value.trim(), k = smProjKey(v), sub = k && k !== v ? v : ''; if (k && (k !== smProj || sub !== smSubCur)) { smSubCur = sub; smLoadProj(k); } } catch (e) {} }
   let pjOpen = false, pjAsk = '', pjSel = '';
   function smProjDel(k) {
     if (smIsAdmin() && serverUrl() && pin) api({ a: 'sm_del', token: pin, k: k }).catch(function () {});
@@ -3275,6 +3290,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       const m = await mpAsk(wb, proj, fname, pre, edit);
       if (!m) return false;
       proj = m.proj; const b = mpBuild(m); use = b.wb; sel = m;
+      if (proj.indexOf('.') < 0) { const sc = (edit && pre && pre.subCol !== undefined) ? pre.subCol : await smSubColAsk(wb, use, proj); if (sc === null) return false; sel.subCol = sc; smFillSub(wb, use, sc); }
       note = L2('Çevrildi: ', 'Преобразовано: ') + b.n + ' ' + L2('kapı', 'дверей');
       if (edit) {
         try {
@@ -3292,11 +3308,12 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
         } catch (e) { smToast(L2('Eski işaretler taşınamadı: ', 'Не удалось перенести отметки: ') + e.message); }
       }
     }
+    if (!sel && proj.indexOf('.') < 0) { try { const ws0 = use.worksheets.find(function (w) { return smHeaderRow(w); }); const hh = ws0 && smHeaderRow(ws0); if (hh && !hh.map['подпроект']) { const sc = await smSubColAsk(use, use, proj); if (sc === null) return false; smFillSub(use, use, sc); } } catch (e) {} }
     if (!smActivate(use, proj, proj + ' ICON Şahmat.xlsx', note)) return false;
     if (edit) { try { smBuildRapor(); } catch (e) {} }
     await smPersist();
     if (sel) {
-      try { localStorage.setItem('sm_sel_' + proj, JSON.stringify({ path: sel.path, room: sel.room, acc: sel.acc, fname: fname, sheets: sel.sheets.map(function (st) { return { name: st.ws.name, segs: st.segs, list: st.list, pend: st.pend }; }) })); } catch (e) {}
+      try { localStorage.setItem('sm_sel_' + proj, JSON.stringify({ path: sel.path, room: sel.room, acc: sel.acc, subCol: sel.subCol, fname: fname, sheets: sel.sheets.map(function (st) { return { name: st.ws.name, segs: st.segs, list: st.list, pend: st.pend }; }) })); } catch (e) {}
       try { localStorage.setItem('sm_src_' + proj, smB64(buf)); } catch (e) { try { localStorage.removeItem('sm_sel_' + proj); } catch (e2) {} }
     }
     smPushBase(proj, true);
@@ -3306,21 +3323,17 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   $('sm-file').addEventListener('change', async function () {
     const f = this.files[0]; if (!f) return;
-    const mt = /^\s*(\d+\.\d+)(?![0-9])/.exec(f.name);
+    this.value = '';
     const selMain = $('saha-main').value;
-    if (!mt) {
-      const m = L2('Dosya adında alt proje numarası yok. "{0}.01 …xlsx" gibi yazıp tekrar seçin (sadece "{0}" kabul edilmez).', 'В имени файла нет номера подпроекта. Назовите файл «{0}.01 …xlsx» и выберите снова (одного «{0}» недостаточно).').replace(/\{0\}/g, selMain);
-      $('sm-file-name').textContent = m; smToast(m); this.value = ''; return;
+    if (!selMain) { const m = L2('Önce şantiyeyi seçin.', 'Сначала выберите объект.'); $('sm-file-name').textContent = m; smToast(m); return; }
+    const mt = /^\s*(\d+(?:\.\d+)?)(?![0-9])/.exec(f.name);
+    const proj = await smScopeAsk(selMain, mt && mt[1].split('.')[0] === selMain ? mt[1] : '');
+    if (!proj) return;
+    if (smProjKeyExact(proj)) {
+      const m = L2('"{0}" zaten kayıtlı. Güncellemek için Projeleri yönet → Yeni liste yükle.', '«{0}» уже есть. Для обновления: Управление проектами → Загрузить новый список.').replace('{0}', proj);
+      $('sm-file-name').textContent = m; smToast(m); return;
     }
-    if (mt[1].split('.')[0] !== selMain) {
-      const m = L2('Seçili şantiye {0}, ama dosya {1} ile başlıyor. Doğru şantiyeyi seçin ya da dosya adını düzeltin.', 'Выбран объект {0}, а файл начинается с {1}. Выберите нужный объект или исправьте имя файла.').replace('{0}', selMain).replace('{1}', mt[1]);
-      $('sm-file-name').textContent = m; smToast(m); this.value = ''; return;
-    }
-    if (smProjKey(mt[1])) {
-      const m = L2('"{0}" zaten kayıtlı. Aynı numara tekrar eklenemez; güncellemek için Projeleri yönet → Yeni liste yükle.', '«{0}» уже есть. Дубликат добавить нельзя; для обновления: Управление проектами → Новый список.').replace('{0}', mt[1]);
-      $('sm-file-name').textContent = m; smToast(m); this.value = ''; return;
-    }
-    try { await smAddFlow(await f.arrayBuffer(), f.name, mt[1], null, false); }
+    try { await smAddFlow(await f.arrayBuffer(), f.name, proj, null, false); }
     catch (err) { $('sm-file-name').textContent = 'Hata: ' + err.message; }
   });
   async function pjClearRev(k) {
@@ -3758,6 +3771,75 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   $('sm-download').addEventListener('click', smDownload);
 
+
+  // ── Этап 2б: общая спецификация объекта / для подпроекта ──
+  function smModal(html) {
+    const o = document.createElement('div');
+    o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;max-width:460px;width:100%;max-height:90vh;overflow:auto;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.3)';
+    box.className = 'smm'; box.innerHTML = '<style>.smm input[type=radio]{width:18px!important;height:18px!important;min-width:18px!important;min-height:0!important;flex:none!important;padding:0!important;margin:2px 4px 0 0!important;-webkit-appearance:radio!important;appearance:auto!important;border:0!important;box-shadow:none!important;vertical-align:-3px;accent-color:#2D2D40}.smm label{line-height:1.35}</style>' + html; o.appendChild(box); document.body.appendChild(o); return { o: o, box: box };
+  }
+  function smScopeAsk(main, guess) {
+    return new Promise(function (res) {
+      const subs = (sahaSt.subs[main] || []).slice();
+      const isSub = /\./.test(guess);
+      const m = smModal('<div style="font-weight:600;font-size:17px;margin-bottom:6px">' + escapeHtml(L2('Bu şartname hangisi için?', 'Для чего эта спецификация?')) + '</div>' +
+        '<div style="font-size:13px;color:#556A7B;margin-bottom:12px">' + escapeHtml(L2('Dosya adı önemli değil.', 'Имя файла не важно.')) + '</div>' +
+        '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid #E3E8EF;border-radius:10px;margin-bottom:8px;cursor:pointer"><input type="radio" name="scp" value="all"' + (isSub ? '' : ' checked') + ' style="margin-top:3px"><span><b>' + escapeHtml(L2('Ortak — tüm proje', 'Общая для объекта') + ' ' + main) + '</b><br><small style="color:#556A7B">' + escapeHtml(L2('Sonraki adımda alt proje sütununu seçersiniz (veya «yok»).', 'Дальше выберете столбец с № подпроекта (или «нет»).')) + '</small></span></label>' +
+        '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid #E3E8EF;border-radius:10px;cursor:pointer"><input type="radio" name="scp" value="sub"' + (isSub ? ' checked' : '') + ' style="margin-top:3px"><span style="flex:1"><b>' + escapeHtml(L2('Bir alt proje için', 'Для подпроекта')) + '</b><br>' +
+        '<input id="scp-sub" list="scp-list" placeholder="' + escapeHtml(main) + '.01" value="' + escapeHtml(isSub ? guess : (subs[0] || '')) + '" style="margin-top:6px;width:100%;box-sizing:border-box"><datalist id="scp-list">' + subs.map(function (x) { return '<option value="' + escapeHtml(x) + '">'; }).join('') + '</datalist></span></label>' +
+        '<div id="scp-err" style="color:#B85C5A;font-size:13px;margin-top:8px"></div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="pj-b" id="scp-c">' + escapeHtml(L2('İptal', 'Отмена')) + '</button><button type="button" class="pj-b solid" id="scp-o">' + escapeHtml(L2('Devam', 'Далее')) + '</button></div>');
+      const done = function (v) { m.o.remove(); res(v); };
+      m.box.querySelector('#scp-sub').addEventListener('focus', function () { m.box.querySelector('input[value=sub]').checked = true; });
+      m.box.querySelector('#scp-c').onclick = function () { done(null); };
+      m.box.querySelector('#scp-o').onclick = function () {
+        if (m.box.querySelector('input[value=all]').checked) return done(main);
+        const v = m.box.querySelector('#scp-sub').value.trim();
+        if (!new RegExp('^' + main + '\\.\\d+$').test(v)) { m.box.querySelector('#scp-err').textContent = L2('Örnek: {0}.01', 'Например: {0}.01').replace('{0}', main); return; }
+        done(v);
+      };
+    });
+  }
+  function smSrcRef(v) { const m = /^(.*)!([A-Z]+)(\d+)$/.exec(String(v || '').trim()); return m ? { sheet: m[1], row: Number(m[3]) } : null; }
+  function smOutSheet(out) { return out.worksheets.find(function (w) { return smHeaderRow(w); }) || out.worksheets[0]; }
+  function smSubColAsk(src, out, proj) {
+    return new Promise(function (res) {
+      const ws = smOutSheet(out), hr = smHeaderRow(ws); if (!hr) return res('');
+      const sc = hr.map['источник'] || 0, refs = [];
+      for (let r = hr.r + 1; r <= ws.rowCount && refs.length < 400; r++) { const ref = sc ? smSrcRef(smTxt(smVal(ws.getRow(r).getCell(sc)))) : null; refs.push(ref || { sheet: ws.name, row: r, self: true }); }
+      const sheetName = refs.length ? refs[0].sheet : ws.name, sws = (refs.length && !refs[0].self ? src : out).getWorksheet(sheetName);
+      if (!sws) return res('');
+      const cols = [];
+      for (let c = 1; c <= Math.min(sws.columnCount || 40, 60); c++) {
+        let head = ''; for (let r = 1; r <= Math.min(10, sws.rowCount); r++) { const x = smTxt(smVal(sws.getRow(r).getCell(c))); if (x) { head = x; break; } }
+        const seen = []; refs.forEach(function (ref) { if (ref.sheet !== sheetName || seen.length >= 4) return; const x = smTxt(smVal(sws.getRow(ref.row).getCell(c))); if (x && seen.indexOf(x) < 0) seen.push(x); });
+        if (!seen.length) continue;
+        const looks = seen.some(function (x) { return /(^|\D)\d+\.\d{1,2}($|\D)/.test(x) || /^\d{1,2}$/.test(x); });
+        cols.push({ c: c, letter: mpLetter(c), head: head, seen: seen, looks: looks });
+      }
+      const m = smModal('<div style="font-weight:600;font-size:17px;margin-bottom:6px">' + escapeHtml(L2('Alt proje numarası hangi sütunda?', 'В каком столбце № подпроекта?')) + '</div>' +
+        '<div style="font-size:13px;color:#556A7B;margin-bottom:12px">' + escapeHtml(L2('Montajcı yalnız kendi alt projesinin kapılarını görecek. Boş hücre — kapı tüm alt projeler için ortak.', 'Монтажник увидит только двери своего подпроекта. Пустая ячейка — дверь общая для всех подпроектов.')) + '</div>' +
+        '<label style="display:block;padding:9px 10px;border:1px solid #E3E8EF;border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="radio" name="sbc" value="" checked> <b>' + escapeHtml(L2('Yok — şartname tüm alt projeler için ortak', 'Нет — спецификация общая для всех подпроектов')) + '</b></label>' +
+        cols.map(function (x) { return '<label style="display:block;padding:9px 10px;border:1px solid ' + (x.looks ? '#7E9BB3' : '#E3E8EF') + ';border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="radio" name="sbc" value="' + x.c + '"> <b>' + x.letter + '</b>' + (x.head ? ' — ' + escapeHtml(x.head.slice(0, 40)) : '') + '<br><small style="color:#556A7B">' + escapeHtml(x.seen.join(' · ').slice(0, 80)) + '</small></label>'; }).join('') +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;position:sticky;bottom:0;background:#fff;padding-top:8px"><button type="button" class="pj-b" id="sbc-c">' + escapeHtml(L2('İptal', 'Отмена')) + '</button><button type="button" class="pj-b solid" id="sbc-o">' + escapeHtml(L2('Kaydet', 'Сохранить')) + '</button></div>');
+      m.box.querySelector('#sbc-c').onclick = function () { m.o.remove(); res(null); };
+      m.box.querySelector('#sbc-o').onclick = function () { const v = m.box.querySelector('input[name=sbc]:checked').value; m.o.remove(); res(v ? { sheet: sheetName, col: Number(v), self: !!(refs[0] && refs[0].self) } : ''); };
+    });
+  }
+  function smFillSub(src, out, sc) {
+    const ws = smOutSheet(out), hr = smHeaderRow(ws); if (!hr) return;
+    let col = hr.map['подпроект'];
+    if (!col) { col = (ws.getRow(hr.r).cellCount || ws.columnCount) + 1; ws.getRow(hr.r).getCell(col).value = 'Подпроект'; ws.getRow(hr.r).getCell(col).font = { bold: true }; ws.getColumn(col).width = 12; }
+    if (!sc) return;
+    const scol = hr.map['источник'] || 0;
+    for (let r = hr.r + 1; r <= ws.rowCount; r++) {
+      const ref = !sc.self && scol ? smSrcRef(smTxt(smVal(ws.getRow(r).getCell(scol)))) : { sheet: ws.name, row: r };
+      const sws = ref ? (sc.self ? out : src).getWorksheet(ref.sheet) : null;
+      ws.getRow(r).getCell(col).value = sws ? (smTxt(smVal(sws.getRow(ref.row).getCell(sc.col))) || null) : null;
+    }
+  }
   // ── Gönder ──
 
   // ════════ Этап 2: шахматки на Google Диске ════════
@@ -3775,7 +3857,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     };
   })();
   function smJ(k, d) { try { return JSON.parse(lsGet(k) || '') || d; } catch (e) { return d; } }
-  function smOcc(sh, row) { let o = 0; for (let i = 0; i < sh.rows.length; i++) { const x = sh.rows[i]; if (x.blok === row.blok && x.mirka === row.mirka) { o++; if (x.r === row.r) return o; } } return 1; }
+  function smOcc(sh, row) { const R = sh.allRows || sh.rows; let o = 0; for (let i = 0; i < R.length; i++) { const x = R[i]; if (x.blok === row.blok && x.mirka === row.mirka) { o++; if (x.r === row.r) return o; } } return 1; }
   function smEvList(sm, d) {
     const o = [];
     ['add', 'del', 'tadd', 'tdel', 'sadd', 'sdel', 'hadd', 'hdel'].forEach(function (t) {
