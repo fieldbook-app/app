@@ -304,6 +304,16 @@
   #sm-page{display:none;position:fixed;inset:0;z-index:50;background:linear-gradient(180deg,var(--paper) 0%,var(--paper-deep) 100%);flex-direction:column;
     padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
   #sm-page.open{display:flex}
+  #mp-page{display:none;position:fixed;inset:0;z-index:55;background:#F2F5FA}
+  #mp-page.open{display:block}
+  #mp-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#F2F5FA}
+  #mp-load{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#F2F5FA;color:#556A7B;font-size:15px;text-align:center;padding:24px}
+  #mp-load[hidden]{display:none}
+  #mp-load-x{position:absolute;top:14px;right:16px;font-size:26px;border:0;background:transparent;color:#2D2D40;cursor:pointer}
+  .mp-spin{width:34px;height:34px;border-radius:50%;border:3px solid #C5CED8;border-top-color:#2D2D40;animation:mpSp 0.9s linear infinite}
+  @keyframes mpSp{to{transform:rotate(360deg)}}
+  .mp-adm{margin:8px 2px 0;font-size:13px;color:#556A7B;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .mp-adm button{font:inherit;font-size:13px;background:transparent;border:1px dashed #7E9BB3;color:#2D2D40;border-radius:9999px;padding:6px 14px;cursor:pointer}
   .sm-top{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line-soft);background:var(--paper)}
   .sm-top button{background:transparent;border:1px solid var(--line-soft);color:var(--on-dark);border-radius:999px;padding:8px 14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
   .sm-top button.ok{background:#fff;color:var(--paper-deep);border-color:#fff}
@@ -831,6 +841,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button type="button" data-mode="hazir" data-i18n="sm_mode_haz">Hazır değil</button>
         </div>
         <button type="button" class="sm-open" id="sm-open-btn"><b data-i18n="sm_open">Şahmatı aç</b><span>›</span></button>
+        <button type="button" class="sm-open" id="mp-open-btn" style="display:none"><b id="mp-open-t">Haritayı aç</b><span>›</span></button>
+        <div class="mp-adm" id="mp-adm" style="display:none"><button type="button" id="mp-up"></button><input type="file" id="mp-file" accept=".icmap,.json,text/plain" hidden><span id="mp-up-msg"></span></div>
         <div class="sm-sum" id="sm-sum"></div>
       </div>
 
@@ -856,6 +868,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </main>
 </div>
 
+<div id="mp-page" role="dialog" aria-modal="true"><div id="mp-load"><div class="mp-spin"></div><div id="mp-load-t">…</div><button type="button" id="mp-load-x">×</button></div><iframe id="mp-frame" title="Карта"></iframe></div>
 <div id="sm-page" role="dialog" aria-modal="true">
   <div class="sm-top">
     <button type="button" id="sm-back" data-i18n="sm_back">‹ Geri</button>
@@ -2000,7 +2013,8 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     });
   }
   const qtL1 = function () { return L2('1 adet', '1 шт.'); }, qtL2 = function () { return L2('2 adet', '2 шт.'); };
-  $('sm-scroll').addEventListener('click', async function (e) {
+  $('sm-scroll').addEventListener('click', smGridClick);
+  async function smGridClick(e) {
     if (smLpFired) { smLpFired = false; return; }
     if (smModalResolve) return;
     if (smMode === 'hazir') {
@@ -2119,7 +2133,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       }
     }
     smRepaint(td);
-  });
+  }
 
   // ── Otomatik tanıma: standart olmayan Excel'i "ICON Şahmat" sayfasına çevirir (grs_v13) ──
   // Mantık: 1) "этаж" başlığını bul (kat sütunu) 2) üstte КОРПУС/БЛОК yazısını bul 3) sütun başlıklarını oku
@@ -3840,6 +3854,161 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       ws.getRow(r).getCell(col).value = sws ? (smTxt(smVal(sws.getRow(ref.row).getCell(sc.col))) || null) : null;
     }
   }
+
+  // ── Этап 3: карта дверей внутри приложения ──
+  const MPDB = (function () {
+    let p = null;
+    function db() { if (!p) p = new Promise(function (res, rej) { let r; try { r = indexedDB.open('icon-map', 1); } catch (e) { return rej(e); }
+      r.onupgradeneeded = function () { r.result.createObjectStore('m'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; }); return p; }
+    function tx(mode, fn) { return db().then(function (d) { return new Promise(function (res, rej) { const t = d.transaction('m', mode); const q = fn(t.objectStore('m')); t.oncomplete = function () { res(q && q.result); }; t.onerror = function () { rej(t.error); }; }); }); }
+    return { get: function (k) { return tx('readonly', function (s) { return s.get(k); }).catch(function () { return null; }); },
+             put: function (k, v) { return tx('readwrite', function (s) { return s.put(v, k); }).catch(function () { return null; }); } };
+  })();
+  function mpMeta() { try { return JSON.parse(localStorage.getItem('mp_meta') || '{}') || {}; } catch (e) { return {}; } }
+  function mpMain() { const m = $('saha-main'); return m ? String(m.value || '').trim() : ''; }
+  function mpIsMgr() { try { return pInfo(reporter).rol === 'Yönetici'; } catch (e) { return false; } }
+  async function mpSyncMeta() {
+    if (!serverUrl() || !pin || !navigator.onLine) { mpBtn(); return; }
+    try { const j = await api(null, 'a=mp_meta&token=' + encodeURIComponent(pin)); if (j && j.ok) { const o = {}; j.maps.forEach(function (x) { o[x.k] = x.ver; }); localStorage.setItem('mp_meta', JSON.stringify(o)); } } catch (e) {}
+    mpBtn();
+  }
+  function mpBtn() {
+    const main = mpMain(), has = !!(main && mpMeta()[main]);
+    $('mp-open-btn').style.display = has ? '' : 'none';
+    $('mp-open-t').textContent = L2('Haritayı aç', 'Открыть карту');
+    $('mp-adm').style.display = (main && mpIsMgr()) ? '' : 'none';
+    $('mp-up').textContent = has ? L2('Haritayı güncelle', 'Обновить карту объекта') + ' ' + main : L2('Harita yükle', 'Загрузить карту объекта') + ' ' + main;
+  }
+  ['saha-main', 'saha-sub'].forEach(function (id) { const e = $(id); if (e) e.addEventListener('change', function () { setTimeout(mpBtn, 0); }); });
+  async function mpDecode(text) {
+    text = String(text || '').trim();
+    if (text.indexOf('ICMAP1:') === 0) {
+      const bin = atob(text.slice(7)), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      const st = new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'));
+      text = await new Response(st).text();
+    }
+    const o = JSON.parse(text); if (!o || !Array.isArray(o.floors)) throw new Error('bad map'); return o;
+  }
+  $('mp-up').addEventListener('click', function () { $('mp-file').click(); });
+  $('mp-file').addEventListener('change', async function () {
+    const f = this.files && this.files[0]; this.value = ''; if (!f) return;
+    const main = mpMain(), msg = $('mp-up-msg'); msg.textContent = L2('Yükleniyor…', 'Загрузка…');
+    try {
+      const text = await f.text(); const o = await mpDecode(text);
+      if (o.obj && String(o.obj) !== main && !window.confirm(L2('Bu harita ', 'Эта карта для объекта ') + o.obj + '. ' + L2('Yine de ' + main + ' için yüklensin mi?', 'Всё равно загрузить для ' + main + '?'))) { msg.textContent = ''; return; }
+      const j = await api({ a: 'mp_put', token: pin, k: main, data: text });
+      if (!j || !j.ok) throw new Error(j && j.error || 'error');
+      await MPDB.put('map_' + main, { ver: j.ver, data: o }); const m = mpMeta(); m[main] = j.ver; localStorage.setItem('mp_meta', JSON.stringify(m));
+      msg.textContent = L2('Harita yüklendi (sürüm ', 'Карта загружена (версия ') + j.ver + ').'; mpBtn();
+    } catch (e) { msg.textContent = L2('Hata: ', 'Ошибка: ') + (e.message === 'bad map' ? L2('bu bir harita dosyası değil', 'это не файл карты') : e.message); }
+  });
+  async function mpData(main) {
+    const want = mpMeta()[main] || 0, c = await MPDB.get('map_' + main);
+    if (c && c.data && (c.ver >= want || !navigator.onLine)) return c.data;
+    const j = await api(null, 'a=mp_get&k=' + encodeURIComponent(main) + '&token=' + encodeURIComponent(pin));
+    if (!j || !j.ok) { if (c && c.data) return c.data; throw new Error(j && j.error || 'error'); }
+    const o = await mpDecode(j.data); await MPDB.put('map_' + main, { ver: j.ver, data: o }); return o;
+  }
+  // ── связь «кружок на карте ↔ строка шахматки»
+  let MPL = null;
+  function mpNormMark(s) { return String(s || '').split('/')[0].trim().toLowerCase().replace(/\s+/g, '').replace(/[–—]/g, '-').replace(/[abcehkmoptxy]/g, function (c) { return 'абсенкмортху'['abcehkmoptxy'.indexOf(c)]; }); }
+  function mpNormBld(s) { return String(s || '').trim().toUpperCase().replace(/\d+$/, '').replace(/[ЁE]/g, 'Е'); }
+  function mpRooms(s) { return String(s || '').toUpperCase().replace(/A/g, 'А').replace(/,(?=\d)/g, '.').split(/[\s,;\n]+|\bВ\b/).map(function (x) { return x.replace(/^П\.?/, 'П.').replace(/[^0-9А-ЯП.]/g, ''); }).filter(Boolean); }
+  function mpFloorNum(v) { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.').replace('−', '-')); return isFinite(n) ? Math.round(n) : null; }
+  function mpLink(map) {
+    const L = { door: {}, rows: 0, sheets: smSheets }; if (!smSheets.length) return L;
+    const doors = {}; map.floors.forEach(function (f) { f.doors.forEach(function (d) { if (!d.mark) return; const k = mpNormBld(f.bld) + '|' + mpNormMark(d.mark); (doors[k] = doors[k] || []).push({ d: d, f: f, num: f.num, rooms: (d.rooms || []).map(function (x) { return mpRooms(x)[0] || x; }) }); }); });
+    const used = {};
+    smSheets.forEach(function (sh, si) {
+      const all = sh.allRows || sh.rows, mine = {}; sh.rows.forEach(function (r) { mine[r.r] = 1; });
+      const groups = {};
+      all.forEach(function (row) { const k = mpNormBld(row.blok) + '|' + mpNormMark(row.mirka); (groups[k] = groups[k] || []).push(row); L.rows++; });
+      Object.keys(groups).forEach(function (k) {
+        const cand = (doors[k] || []).filter(function (x) { return !used[x.d.id]; }); if (!cand.length) return;
+        const rows = groups[k], pairs = [];
+        rows.forEach(function (row, ri) {
+          const fn = mpFloorNum(row.kat), rr = mpRooms(row.room);
+          cand.forEach(function (c, ci) {
+            if (fn != null && c.num != null && fn !== c.num) return;
+            const common = rr.filter(function (x) { return c.rooms.indexOf(x) >= 0; }).length;
+            pairs.push({ ri: ri, ci: ci, sc: common * 10 + (fn != null ? 1 : 0) });
+          });
+        });
+        pairs.sort(function (a, b) { return b.sc - a.sc || a.ri - b.ri || a.ci - b.ci; });
+        const ru = {}, cu = {};
+        pairs.forEach(function (p) { if (ru[p.ri] || cu[p.ci]) return; ru[p.ri] = cu[p.ci] = 1; const c = cand[p.ci], row = rows[p.ri]; used[c.d.id] = 1; L.door[c.d.id] = { si: si, row: row, mine: !!mine[row.r] }; });
+      });
+    });
+    return L;
+  }
+  function mpLinkOf(id) { if (!MPL || MPL.sheets !== smSheets) { if (!ICONMAP.data) return null; MPL = mpLink(ICONMAP.data); } return MPL.door[id] || null; }
+  function mpDoorItem(sh) { return sh.items.find(function (i) { return i.door; }); }
+  function mpRowSt(si, row) {
+    const sh = smSheets[si], dIt = mpDoorItem(sh); if (!dIt) return 0;
+    const kd = smKey(si, row.r, dIt.col), inst = (smQty(sh, row, dIt) > 0 && !smUndo[kd]) || !!smSel[kd];
+    if (!inst) return 0;
+    const full = sh.items.every(function (it) { if (!smApplicable(sh, row, it)) return true; const k = smKey(si, row.r, it.col); return ((smDone(sh, row, it) && !smUndo[k]) || (Number(smSel[k]) || 0) + (smUndo[k] ? 0 : smQty(sh, row, it)) >= smNeed(sh, row, it)); });
+    return full ? 2 : 1;
+  }
+  function mpToday(si, row) { const sh = smSheets[si]; return sh.items.some(function (it) { const k = smKey(si, row.r, it.col); return smSel[k] || smTes[k] || smSok[k] || smHaz[k] || smUndo[k] || smTesUndo[k]; }); }
+  const ICONMAP = {
+    obj: '', title: '', floors: [], migrate: {}, data: null, win: null, startFloor: 'f1',
+    userName: function () { return reporter || ''; },
+    doorSt: function (id) { const l = mpLinkOf(id); return l ? mpRowSt(l.si, l.row) : 0; },
+    doorCls: function (id) {
+      if (!smSheets.length) return '';
+      const l = mpLinkOf(id); if (!l) return ' out';
+      return (l.mine ? '' : ' other') + (l.mine && mpToday(l.si, l.row) ? ' today' : '');
+    },
+    mountRow: function (host, id) {
+      const l = mpLinkOf(id);
+      if (!smSheets.length) { host.innerHTML = '<div class="smh-none">' + escapeHtml(L2('Bu alt proje için şahmat yüklü değil.', 'Для этого подпроекта шахматка не загружена.')) + '</div>'; return; }
+      if (!l) { host.innerHTML = '<div class="smh-none">' + escapeHtml(L2('Bu kapı şahmatta yok.', 'Этой двери нет в шахматке.')) + '</div>'; return; }
+      const sh = smSheets[l.si], row = l.row;
+      if (!l.mine) { host.innerHTML = '<div class="smh-none" style="background:#F2F5FA;border-color:#D9E1F2;color:#556A7B">' + escapeHtml(L2('Başka alt proje', 'Дверь другого подпроекта') + (row.sub ? ': ' + row.sub : '')) + '</div>'; return; }
+      const modeName = { montaj: L2('Montaj', 'Монтаж'), teslim: L2('Teslimat', 'Сдача'), sok: L2('Sök-tak', 'Снятие-установка'), hazir: L2('Hazır değil', 'Не готово') }[smMode];
+      const its = smVisItems(sh);
+      host.innerHTML = '<div class="smh-t">' + escapeHtml(L2('Şahmat', 'Шахматка') + ' · ' + row.blok + (row.kat == null || row.kat === '' ? '' : ' · ' + L2('kat', 'этаж') + ' ' + row.kat) + (row.room ? ' · ' + row.room : '') + ' · ' + L2('mod', 'режим') + ': ' + modeName) + '</div>' +
+        '<table><thead><tr>' + its.map(function (it) { return '<th>' + escapeHtml(it.door ? L2('Kapı', 'Дверь') : smItemLabel(it)) + '</th>'; }).join('') + '</tr></thead><tbody><tr>' +
+        its.map(function (it) { return smCellHtml(l.si, sh, row, it); }).join('') + '</tr></tbody></table>' +
+        '<div class="smh-hint">' + escapeHtml(L2('İşaretler günün raporuna eklenir — sonunda raporu gönderin.', 'Отметки попадут в сегодняшний отчёт — в конце дня проверьте и отправьте отчёт.')) + '</div>';
+      if (!host._mp) { host._mp = 1; host.addEventListener('click', async function (e) { await smGridClick(e); try { smRenderSum(); } catch (x) {} if (ICONMAP.win) ICONMAP.win.mapRefresh(); }); }
+    },
+    fetch: async function (u, o) {
+      const k = ICONMAP.obj; let j;
+      if (o && o.method === 'POST') { const b = JSON.parse(o.body || '{}'); delete b.key; b.a = 'mk_post'; b.k = k; b.token = pin; j = await api(b); }
+      else { const q = new URLSearchParams(String(u).split('?')[1] || '');
+        if (q.get('photo')) j = await api(null, 'a=mk_photo&k=' + encodeURIComponent(k) + '&id=' + encodeURIComponent(q.get('photo')) + '&token=' + encodeURIComponent(pin));
+        else j = await api(null, 'a=mk&k=' + encodeURIComponent(k) + '&dev=' + encodeURIComponent(q.get('dev') || '') + '&token=' + encodeURIComponent(pin)); }
+      return { ok: true, json: function () { return Promise.resolve(j); } };
+    },
+    close: function () { $('mp-page').classList.remove('open'); document.body.style.overflow = ''; try { smRenderSum(); } catch (e) {} },
+    ready: function (w) { ICONMAP.win = w; $('mp-load').hidden = true; mpPushOut(); }
+  };
+  window.ICONMAP = ICONMAP;
+  async function mpPushOut() {
+    if (!mpIsMgr() || !smSheets.length || !ICONMAP.data || smSubCur) return;
+    const list = []; ICONMAP.data.floors.forEach(function (f) { f.doors.forEach(function (d) { if (!mpLinkOf(d.id) && d.mark && !/^(Вр|Шт)/.test(d.mark)) list.push({ id: d.id, bld: f.bld, floor: f.name, mark: d.mark, rooms: (d.rooms || []).join(', ') }); }); });
+    const sig = ICONMAP.obj + ':' + list.map(function (x) { return x.id; }).join(',');
+    try { if (localStorage.getItem('mp_out_sig') === sig) return; } catch (e) {}
+    try { const j = await api({ a: 'mp_out', token: pin, k: ICONMAP.obj, list: list }); if (j && j.ok) localStorage.setItem('mp_out_sig', sig); } catch (e) {}
+  }
+  async function mpOpen() {
+    const main = mpMain(); if (!main) return;
+    if ($('sm-modal').parentElement !== document.body) document.body.appendChild($('sm-modal'));
+    $('mp-page').classList.add('open'); document.body.style.overflow = 'hidden';
+    $('mp-load').hidden = false; $('mp-load-t').textContent = L2('Harita yükleniyor…', 'Загружаю карту…');
+    try {
+      const data = await mpData(main);
+      const fresh = ICONMAP.obj !== main || ICONMAP.data !== data;
+      ICONMAP.obj = main; ICONMAP.title = main + (sahaInput.value && sahaInput.value !== main ? ' · ' + sahaInput.value : ''); ICONMAP.data = data; ICONMAP.floors = data.floors; ICONMAP.migrate = data.migrate || {}; MPL = null;
+      if (fresh || !ICONMAP.win) { ICONMAP.win = null; $('mp-frame').src = 'map.html?o=' + encodeURIComponent(main) + '&v=' + (mpMeta()[main] || 0); }
+      else { $('mp-load').hidden = true; ICONMAP.win.mapRefresh(); }
+    } catch (e) { $('mp-load-t').textContent = L2('Harita açılamadı: ', 'Не удалось открыть карту: ') + (navigator.onLine ? e.message : L2('internet yok', 'нет интернета')); }
+  }
+  $('mp-open-btn').addEventListener('click', mpOpen);
+  $('mp-load-x').addEventListener('click', function () { ICONMAP.close(); });
+  setTimeout(mpBtn, 0);
   // ── Gönder ──
 
   // ════════ Этап 2: шахматки на Google Диске ════════
@@ -3971,7 +4140,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       localStorage.setItem('sm_projects', JSON.stringify(ix));
       for (const k of Object.keys(srv)) { if (!ix[k]) listChanged = true; try { await smSyncOne(k, srv[k]); } catch (e) {} }
       if (listChanged) { try { smProjList(); } catch (e) {} renderSahaOptions(); applySahaSelection(); }
-    } catch (e) {} finally { smSyncBusy = false; }
+    } catch (e) {} finally { smSyncBusy = false; try { mpSyncMeta(); } catch (e) {} }
   }
   setInterval(function () { if (!document.hidden && navigator.onLine) smSyncAll(); }, 90000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) smSyncAll(); });
