@@ -928,7 +928,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ── Make.com webhook adresleri ──
   // ── Сервер: Google Apps Script («ICON Система»). Make.com больше не используется. ──
   const PRISTINE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  const SERVER_URL_EMBED = "";
+  const SERVER_URL_EMBED = "https://script.google.com/macros/s/AKfycbxiggY7n2pI9gDeFcmKxrcuW6GWEi6qXTrnJ7hQuDUVG6owJ21W9yaLQNO8x608XqVC/exec";
   function serverUrl() { if (SERVER_URL_EMBED) return SERVER_URL_EMBED; try { return localStorage.getItem('icon_server_url') || ''; } catch (e) { return ''; } }
   async function api(body, query) {
     const u = serverUrl(); if (!u) throw new Error('noserver');
