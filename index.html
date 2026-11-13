@@ -749,6 +749,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* всплывающие окна, которые рисуются из кода (назначение, Spek, «не готово», выбор проектов) */
   div[style*="position:fixed;inset:0;background:rgba(0,0,0,.45)"]{background:rgba(45,45,64,.45)!important}
   div[style*="border-radius:12px"][style*="box-shadow:0 8px 30px"]{border-radius:14px!important;box-shadow:var(--sh3)!important;color:var(--ink2)!important}
+  html body .sm-table,html body .sm-table td,html body .sm-table th,html body .sm-table td *,html body .sm-table th *{font-family:var(--font)!important}
 </style>
 </head>
 <body>
@@ -1492,7 +1493,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
 
   function applySahaSelection() {
     try { syncSahaUI(); } catch (e) {}
-    aktifPlan = sahalar[norm(sahaInput.value)] || null;
+    aktifPlan = planFor(sahaInput.value);
     rows().forEach(updateStats);
     updatePlanInfo();
     if (typeof smToggle === 'function') smToggle();
@@ -1529,6 +1530,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       renderSahaOptions();
       applySahaSelection();
       sahaHint.textContent = '';
+      smSyncAll();
     } catch (err) {
       sahaHint.textContent = t('err_list');
     }
@@ -1562,16 +1564,16 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   let flushing = false;
   async function flushOutbox() {
     if (flushing || !navigator.onLine) return;
-    flushing = true;
+    flushing = true; let sent = 0;
     try {
       let list = getOutbox();
       while (list.length) {
         if (!pin) break;
         try { await postReport(list[0]); } catch (e) { if (e.pin) pinRejected(); break; }
         list = getOutbox().filter(function (r) { return r.rapor_id !== list[0].rapor_id; });
-        setOutbox(list);
+        setOutbox(list); sent++;
       }
-    } finally { flushing = false; }
+    } finally { flushing = false; if (sent) setTimeout(smSyncAll, 300); }
   }
   window.addEventListener('online', flushOutbox);
   setInterval(function () { if (getOutbox().length) flushOutbox(); }, 45000);
@@ -2746,6 +2748,8 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   function smAutoLoad() { try { const k = smProjKey(sahaInput.value.trim()); if (k && k !== smProj) smLoadProj(k); } catch (e) {} }
   let pjOpen = false, pjAsk = '', pjSel = '';
   function smProjDel(k) {
+    if (smIsAdmin() && serverUrl() && pin) api({ a: 'sm_del', token: pin, k: k }).catch(function () {});
+    ['sm_evs_', 'sm_meta_'].forEach(function (p) { try { localStorage.removeItem(p + k); } catch (e) {} }); try { SMDB.del('base_' + k); } catch (e) {}
     try { localStorage.removeItem('sm_wb_' + k); localStorage.removeItem('sm_src_' + k); localStorage.removeItem('sm_sel_' + k); const ix = smIdx(); delete ix[k]; localStorage.setItem('sm_projects', JSON.stringify(ix)); } catch (e) {}
     const nk = norm(k); if (sahalar[nk] && !Object.keys(sahalar[nk].items || {}).length) delete sahalar[nk];
     if (smProj === k) { smWb = null; smProj = ''; smSheets = []; smSel = {}; smUndo = {}; smTes = {}; smTesUndo = {}; smSok = {}; smSokUndo = {}; smHaz = {}; smHazUndo = {}; smCur = ''; $('sm-file-name').textContent = ''; $('sm-open-btn').disabled = true; smRenderSum(); }
@@ -2892,6 +2896,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
         T.concat(D).forEach(function (r) { if (!r.k.trim() && !r.v.trim()) return; W.addRow([r.scope === 'T' ? 'Tümü' : 'Kapı', r.blok, r.door, r.k.trim(), r.v.trim()]); });
         localStorage.setItem('sm_wb_' + k, smB64(await wb.xlsx.writeBuffer()));
         if (smProj === k) await smLoadProj(k);
+        smPushBase(k);
         o.remove(); smToast(L2('Spek kaydedildi.', 'Сохранено.'));
       });
     }
@@ -3294,6 +3299,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       try { localStorage.setItem('sm_sel_' + proj, JSON.stringify({ path: sel.path, room: sel.room, acc: sel.acc, fname: fname, sheets: sel.sheets.map(function (st) { return { name: st.ws.name, segs: st.segs, list: st.list, pend: st.pend }; }) })); } catch (e) {}
       try { localStorage.setItem('sm_src_' + proj, smB64(buf)); } catch (e) { try { localStorage.removeItem('sm_sel_' + proj); } catch (e2) {} }
     }
+    smPushBase(proj, true);
     renderSahaOptions(); sahaInput.value = proj; applySahaSelection();
     smToast((edit ? L2('Proje güncellendi: {0}', 'Проект обновлён: {0}') : L2('Proje eklendi: {0}', 'Проект добавлен: {0}')).replace('{0}', proj));
     return true;
@@ -3325,6 +3331,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       if (h[SM_REV]) for (let r = 2; r <= ws.rowCount; r++) { const c = ws.getRow(r).getCell(h[SM_REV]); if (smTxt(smVal(c))) { c.value = null; n++; } }
       localStorage.setItem('sm_wb_' + k, smB64(await wb.xlsx.writeBuffer()));
       if (smProj === k) await smLoadProj(k);
+      smPushBase(k);
       smToast(L2('Rev notları temizlendi: ', 'Ревизии убраны: ') + n);
     } catch (e) { smToast('Hata: ' + e.message); }
   }
@@ -3752,6 +3759,156 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   $('sm-download').addEventListener('click', smDownload);
 
   // ── Gönder ──
+
+  // ════════ Этап 2: шахматки на Google Диске ════════
+  // База (Excel) — в папке проекта на Диске, меняет только руководитель.
+  // Отметки — записи журнала на сервере; устройство собирает: база + журнал + свои неотправленные.
+  const SMDB = (function () {
+    let p = null; const mem = {};
+    function db() { if (!p) p = new Promise(function (res, rej) { let r; try { r = indexedDB.open('icon-sm', 1); } catch (e) { return rej(e); }
+      r.onupgradeneeded = function () { r.result.createObjectStore('f'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; }); return p; }
+    function tx(mode, fn) { return db().then(function (d) { return new Promise(function (res, rej) { const t = d.transaction('f', mode); const q = fn(t.objectStore('f')); t.oncomplete = function () { res(q && q.result); }; t.onerror = function () { rej(t.error); }; }); }); }
+    return {
+      get: function (k) { if (k in mem) return Promise.resolve(mem[k]); return tx('readonly', function (s) { return s.get(k); }).catch(function () { return null; }); },
+      put: function (k, v) { mem[k] = v; return tx('readwrite', function (s) { return s.put(v, k); }).catch(function () { return null; }); },
+      del: function (k) { delete mem[k]; return tx('readwrite', function (s) { return s.delete(k); }).catch(function () { return null; }); }
+    };
+  })();
+  function smJ(k, d) { try { return JSON.parse(lsGet(k) || '') || d; } catch (e) { return d; } }
+  function smOcc(sh, row) { let o = 0; for (let i = 0; i < sh.rows.length; i++) { const x = sh.rows[i]; if (x.blok === row.blok && x.mirka === row.mirka) { o++; if (x.r === row.r) return o; } } return 1; }
+  function smEvList(sm, d) {
+    const o = [];
+    ['add', 'del', 'tadd', 'tdel', 'sadd', 'sdel', 'hadd', 'hdel'].forEach(function (t) {
+      (sm[t] || []).forEach(function (x) {
+        const pub = smPublic(x);
+        o.push({ t: t, sh: x.sh.name, b: x.row.blok, m: x.row.mirka, o: smOcc(x.sh, x.row), p: x.it.door ? '#door' : x.it.name, q: x.q || 1, s: x.it.door ? (pub.sildik || '') : '', w: x.why || '', d: d });
+      });
+    });
+    return o;
+  }
+  function smEvX(ev) {
+    let si = -1; for (let i = 0; i < smSheets.length; i++) if (smSheets[i].name === ev.sh) { si = i; break; }
+    if (si < 0) return null; const sh = smSheets[si];
+    let o = 0, row = null; for (let i = 0; i < sh.rows.length; i++) { const r = sh.rows[i]; if (r.blok === ev.b && r.mirka === ev.m) { o++; if (o === ev.o) { row = r; break; } } }
+    if (!row) return null;
+    const it = ev.p === '#door' ? sh.items.find(function (i) { return i.door; }) : sh.items.find(function (i) { return i.name === ev.p; });
+    if (!it) return null;
+    if (it.door && ev.s) smLabel[smKey(si, row.r, it.col)] = ev.s;
+    return { si: si, sh: sh, row: row, it: it, q: ev.q || 1, why: ev.w || '' };
+  }
+  function smReplay(evs) {
+    const _today = smTodayDate, _br = smBuildRapor; let n = 0, i = 0;
+    try {
+      smBuildRapor = function () {};
+      while (i < evs.length) {
+        const rid = evs[i].rid || ('x' + i), grp = [];
+        while (i < evs.length && (evs[i].rid || ('x' + i)) === rid) { grp.push(evs[i]); i++; }
+        const sm = { add: [], del: [], tadd: [], tdel: [], sadd: [], sdel: [], hadd: [], hdel: [] };
+        grp.forEach(function (e) { const x = smEvX(e); if (x && sm[e.t]) { sm[e.t].push(x); n++; } });
+        if (!smAny(sm)) continue;
+        const dd = String(grp[0].d || '').split('-').map(Number);
+        smTodayDate = function () { return dd.length === 3 && dd[0] ? new Date(Date.UTC(dd[0], dd[1] - 1, dd[2])) : _today(); };
+        _smApply14(sm, { raporu_giren: grp[0].u || '', saha: grp[0].saha || '', rapor_id: grp[0].rid || '', kisi_sayisi: grp[0].kisi || '' });
+      }
+    } finally { smTodayDate = _today; smBuildRapor = _br; }
+    try { smBuildRapor(); } catch (e) {}
+    return n;
+  }
+  function smPendingEv(k) {
+    const o = [];
+    getOutbox().forEach(function (d) { if (d.sm_k === k && Array.isArray(d.sm_ev)) d.sm_ev.forEach(function (e) { o.push(Object.assign({}, e, { u: d.raporu_giren || reporter, rid: d.rapor_id, saha: d.saha, kisi: d.kisi_sayisi })); }); });
+    return o;
+  }
+  const smWait = {};
+  async function smRebuild(k) {
+    const base = await SMDB.get('base_' + k); if (!base) return false;
+    if (smProj === k && smAny(smCollect())) { smWait[k] = 1; return false; }   // не мешаем, пока человек отмечает
+    const evs = smJ('sm_evs_' + k, []).concat(smPendingEv(k)), meta = smJ('sm_meta_' + k, {});
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(smUnB64(base));
+    const sv = [smWb, smSheets, smProj, smFileName, smSel, smUndo, smLabel, smTes, smTesUndo, smSok, smSokUndo, smHaz, smHazUndo];
+    let rows = 0;
+    try {
+      smWb = wb; smSheets = smParse(wb); smProj = k; smLabel = {};
+      rows = smSheets.reduce(function (a, sh) { return a + sh.rows.length; }, 0);
+      smReplay(evs);
+      localStorage.setItem('sm_wb_' + k, smB64(await wb.xlsx.writeBuffer()));
+    } finally { smWb = sv[0]; smSheets = sv[1]; smProj = sv[2]; smFileName = sv[3]; smSel = sv[4]; smUndo = sv[5]; smLabel = sv[6]; smTes = sv[7]; smTesUndo = sv[8]; smSok = sv[9]; smSokUndo = sv[10]; smHaz = sv[11]; smHazUndo = sv[12]; }
+    const ix = smIdx(); ix[k] = Object.assign({}, ix[k], { n: rows, file: meta.file || (ix[k] && ix[k].file) || (k + ' ICON Şahmat.xlsx'), ts: Date.now(), srv: true });
+    localStorage.setItem('sm_projects', JSON.stringify(ix));
+    delete smWait[k];
+    if (smProj === k) await smLoadProj(k);
+    return true;
+  }
+  async function smPushBase(k, withSrc) {
+    if (!serverUrl() || !pin || !smIsAdmin()) return false;
+    if (getOutbox().some(function (d) { return d.sm_k === k; })) { smToast(L2('Önce bekleyen raporları gönderin, sonra şahmat Drive\'a kaydedilir.', 'Сначала отправьте ожидающие отчёты — потом шахматка сохранится на Диск.')); smDirty(k, withSrc); return false; }
+    const b64 = localStorage.getItem('sm_wb_' + k); if (!b64) return false;
+    const ix = smIdx(), meta = smJ('sm_meta_' + k, {}), evs = smJ('sm_evs_' + k, []);
+    const seq = evs.reduce(function (a, e) { return Math.max(a, e.seq || 0); }, meta.seq || 0);
+    const body = { a: 'sm_put', token: pin, k: k, file: (ix[k] && ix[k].file) || (k + ' ICON Şahmat.xlsx'), n: (ix[k] && ix[k].n) || 0, b64: b64, seq: seq };
+    if (withSrc) { const src = localStorage.getItem('sm_src_' + k), sel = localStorage.getItem('sm_sel_' + k); if (src) body.src = src; if (sel) body.sel = sel; }
+    try {
+      const j = await api(body); if (!j || !j.ok) throw new Error((j && j.error) || 'server');
+      await SMDB.put('base_' + k, b64);
+      meta.ver = j.ver; meta.seq = seq; meta.file = body.file; lsSet('sm_meta_' + k, JSON.stringify(meta)); lsSet('sm_evs_' + k, '[]');
+      const ix2 = smIdx(); ix2[k] = Object.assign({}, ix2[k], { srv: true, dirty: false, dsrc: false }); localStorage.setItem('sm_projects', JSON.stringify(ix2));
+      smToast(L2('Şahmat Google Drive\'a kaydedildi: {0}', 'Шахматка сохранена на Google Диск: {0}').replace('{0}', k));
+      return true;
+    } catch (e) { smDirty(k, withSrc); smToast(L2('Drive\'a kaydedilemedi, bağlantı gelince tekrar denenecek: ', 'Не сохранено на Диск, повторю при связи: ') + e.message); return false; }
+  }
+  function smDirty(k, withSrc) { const ix = smIdx(); if (!ix[k]) return; ix[k].dirty = true; if (withSrc) ix[k].dsrc = true; localStorage.setItem('sm_projects', JSON.stringify(ix)); }
+  async function smSyncOne(k, m) {
+    const meta = smJ('sm_meta_' + k, {}); let evs = smJ('sm_evs_' + k, []), changed = false;
+    if (meta.ver !== m.ver || !(await SMDB.get('base_' + k))) {
+      const b = await api(null, 'a=sm_base&k=' + encodeURIComponent(k) + '&token=' + encodeURIComponent(pin) + (smIsAdmin() && m.hasSrc ? '&src=1' : ''));
+      if (!b || !b.ok) return;
+      await SMDB.put('base_' + k, b.b64);
+      if (b.src) { try { localStorage.setItem('sm_src_' + k, b.src); } catch (e) {} }
+      if (b.sel) { try { localStorage.setItem('sm_sel_' + k, b.sel); } catch (e) {} }
+      meta.ver = b.ver; meta.seq = b.seq; meta.file = b.file; evs = evs.filter(function (e) { return e.seq > b.seq; }); changed = true;
+    }
+    const after = evs.reduce(function (a, e) { return Math.max(a, e.seq || 0); }, meta.seq || 0);
+    const e = await api(null, 'a=sm_ev&k=' + encodeURIComponent(k) + '&after=' + after + '&token=' + encodeURIComponent(pin));
+    if (e && e.ok && e.ev.length) { evs = evs.concat(e.ev); changed = true; }
+    lsSet('sm_evs_' + k, JSON.stringify(evs)); lsSet('sm_meta_' + k, JSON.stringify(meta));
+    if (changed || smWait[k] || !localStorage.getItem('sm_wb_' + k)) await smRebuild(k);
+  }
+  let smSyncBusy = false;
+  async function smSyncAll() {
+    if (!serverUrl() || !pin || smSyncBusy) return; smSyncBusy = true;
+    try {
+      const j = await api(null, 'a=sm_list&token=' + encodeURIComponent(pin)); if (!j || !j.ok) return;
+      const srv = {}; j.list.forEach(function (x) { srv[x.k] = x; });
+      let ix = smIdx(), listChanged = false;
+      if (smIsAdmin()) for (const k of Object.keys(ix)) { if ((!srv[k] && !ix[k].srv) || ix[k].dirty) { if (await smPushBase(k, !srv[k] || ix[k].dsrc)) { const j2 = await api(null, 'a=sm_list&token=' + encodeURIComponent(pin)); if (j2 && j2.ok) j2.list.forEach(function (x) { srv[x.k] = x; }); } } }
+      ix = smIdx();
+      for (const k of Object.keys(ix)) if (ix[k].srv && !srv[k] && !ix[k].dirty) {   // удалена на сервере или доступ снят
+        ['sm_wb_', 'sm_src_', 'sm_sel_', 'sm_evs_', 'sm_meta_'].forEach(function (p) { try { localStorage.removeItem(p + k); } catch (e) {} });
+        SMDB.del('base_' + k); delete ix[k]; listChanged = true;
+      }
+      localStorage.setItem('sm_projects', JSON.stringify(ix));
+      for (const k of Object.keys(srv)) { if (!ix[k]) listChanged = true; try { await smSyncOne(k, srv[k]); } catch (e) {} }
+      if (listChanged) { try { smProjList(); } catch (e) {} renderSahaOptions(); applySahaSelection(); }
+    } catch (e) {} finally { smSyncBusy = false; }
+  }
+  setInterval(function () { if (!document.hidden && navigator.onLine) smSyncAll(); }, 90000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) smSyncAll(); });
+
+  // план — общий на объект; свой у подпроекта, только если задан
+  function planFor(v) {
+    const own = sahalar[norm(v)] || null;
+    const hasOwn = own && Object.keys(own.items).some(function (id) { return own.items[id].toplam != null; });
+    const main = String(v).split('.')[0];
+    if (hasOwn || main === String(v)) return own;
+    const m = sahalar[norm(main)];
+    if (!m || !Object.keys(m.items).some(function (id) { return m.items[id].toplam != null; })) return own;
+    const c = { name: v, items: {} };
+    Object.keys(m.items).forEach(function (id) {
+      let y = 0; Object.keys(sahalar).forEach(function (sk) { const nm = String(sahalar[sk].name); if ((nm === main || nm.split('.')[0] === main) && sahalar[sk].items[id]) y += sahalar[sk].items[id].yapilan || 0; });
+      c.items[id] = { toplam: m.items[id].toplam, yapilan: y };
+    });
+    return c;
+  }
   function showStatus(text) { statusEl.className = 'status show err'; statusEl.textContent = text; }
 
   form.addEventListener('submit', async function (e) {
@@ -3816,6 +3973,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       dil: lang
     };
 
+    if (smAny(sm) && smProj) { data.sm_k = smProj; data.sm_ev = smEvList(sm, data.tarih); }
     if (!items.length && smAny(sm)) data.is = smIsText(sm);
     else if (!items.length && smActive()) data.is = 'Şahmatta değişiklik yok — ' + data.aciklama;
     submitBtn.disabled = true;
@@ -3828,6 +3986,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       if (aktifPlan) items.forEach(function (it) { if (aktifPlan.items[it.id]) aktifPlan.items[it.id].yapilan += it.adet; });
       const smOzet = smApply(sm, data);
       showSuccess(false, t('success_saved') + ' ' + ozet + smOzet);
+      if (data.sm_k) setTimeout(smSyncAll, 300);
     } catch (err) {
       if (err.pin) { pinRejected(); }
       else if (err.http) { showStatus('Hata: ' + err.message); }
