@@ -813,7 +813,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="hint" id="saha-hint"></div>
       </div>
 
-    <div class="pj-card" style="margin:0 0 14px"><div class="pj-head"><div><div class="pj-t" id="sm-add-title">Şahmat projeleri</div><div class="pj-s" id="pj-sub">Yeni proje ekle veya mevcutları yönet</div></div><div class="pj-btns"><button type="button" class="pj-b" id="sm-add">Proje ekle</button><button type="button" class="pj-b" id="sm-mng">Projeleri yönet</button><button type="button" class="pj-b" id="sm-assign">Proje ata</button><button type="button" class="pj-b" id="srv-dl" style="display:none">Uygulama dosyası</button><button type="button" class="pj-b" id="mj-btn" style="display:none">Montajcı dosyası</button></div></div><input type="file" id="sm-file" accept=".xlsx" style="display:none"><input type="file" id="sm-file-edit" accept=".xlsx" style="display:none"><div id="sm-file-name" class="pj-s"></div><div id="sm-proj-list" class="pj-list" style="display:none"></div></div>
+    <div class="pj-card" style="margin:0 0 14px"><div class="pj-head"><div><div class="pj-t" id="sm-add-title">Şahmat projeleri</div><div class="pj-s" id="pj-sub">Yeni proje ekle veya mevcutları yönet</div></div><div class="pj-btns"><button type="button" class="pj-b" id="sm-add">Proje ekle</button><button type="button" class="pj-b" id="sm-mng">Projeleri yönet</button><button type="button" class="pj-b" id="sm-assign">Proje ata</button><button type="button" class="pj-b" id="ob-btn">Nesneler</button><button type="button" class="pj-b" id="srv-dl" style="display:none">Uygulama dosyası</button><button type="button" class="pj-b" id="mj-btn" style="display:none">Montajcı dosyası</button></div></div><input type="file" id="sm-file" accept=".xlsx" style="display:none"><input type="file" id="sm-file-edit" accept=".xlsx" style="display:none"><div id="sm-file-name" class="pj-s"></div><div id="sm-proj-list" class="pj-list" style="display:none"></div></div>
 
       <div class="field">
         <label for="tarih" data-i18n="date">Tarih</label>
@@ -3104,7 +3104,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     $('sm-add-title').textContent = L2('Şahmat projeleri', 'Проекты шахматки');
     $('pj-sub').textContent = L2('Yeni proje ekle veya mevcutları yönet', 'Добавьте проект или управляйте имеющимися');
     $('sm-add').textContent = L2('Proje ekle', 'Добавить проект');
-    $('sm-mng').textContent = L2('Projeleri yönet', 'Управление проектами'); $('sm-assign').textContent = L2('Proje ata', 'Назначить проект'); try { renderServerBox(); } catch (e) {} try { $('saha-tanim').placeholder = L2('Tanım (isteğe bağlı) — örn. Blok B, 3. kat', 'Описание (по желанию) — напр. Блок B, 3 этаж'); } catch (e) {}
+    $('sm-mng').textContent = L2('Projeleri yönet', 'Управление проектами'); try { $('ob-btn').textContent = L2('Nesneler', 'Объекты'); } catch (e) {} $('sm-assign').textContent = L2('Proje ata', 'Назначить проект'); try { renderServerBox(); } catch (e) {} try { $('saha-tanim').placeholder = L2('Tanım (isteğe bağlı) — örn. Blok B, 3. kat', 'Описание (по желанию) — напр. Блок B, 3 этаж'); } catch (e) {}
     $('rp-view-t').textContent = L2('Raporu gör', 'Посмотреть отчёт'); $('rp-close').textContent = L2('‹ Geri', '‹ Назад'); $('rp-xls').textContent = L2('Excel indir', 'Скачать Excel');
     $('mj-btn').textContent = L2('Montajcı dosyası oluştur', 'Создать файл для монтажников');
     $('sm-xls').textContent = L2('Excel indir', 'Скачать Excel');
@@ -4009,6 +4009,46 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   $('mp-open-btn').addEventListener('click', mpOpen);
   $('mp-load-x').addEventListener('click', function () { ICONMAP.close(); });
   setTimeout(mpBtn, 0);
+
+  // ── Объекты: создать / изменить подпроекты (руководитель) ──
+  async function obOpen() {
+    if (!mpIsMgr()) { smToast(L2('Sadece yönetici.', 'Только для руководителя.')); return; }
+    let list = [];
+    try { const j = await api(null, 'a=boot&token=' + encodeURIComponent(pin)); if (j && j.ok) list = j.projeler || []; else throw new Error(j && j.error || 'error'); }
+    catch (e) { smToast(navigator.onLine ? L2('Hata: ', 'Ошибка: ') + e.message : L2('İnternet yok', 'Нет интернета')); return; }
+    const inp = 'width:100%;box-sizing:border-box;margin-top:4px';
+    const row = function (p) { return '<div class="ob-it" data-no="' + escapeHtml(p.no) + '" style="border:1px solid #E3E8EF;border-radius:10px;padding:10px;margin-bottom:8px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">' + escapeHtml(p.no) + '</b><button type="button" class="pj-b ob-save" style="padding:5px 12px">' + escapeHtml(L2('Kaydet', 'Сохранить')) + '</button></div>' +
+      '<label style="display:block;font-size:12px;color:#556A7B;margin-top:6px">' + escapeHtml(L2('Ad', 'Название')) + '<input class="ob-name" style="' + inp + '" value="' + escapeHtml(p.name || '') + '"></label>' +
+      '<label style="display:block;font-size:12px;color:#556A7B;margin-top:6px">' + escapeHtml(L2('Alt projeler (virgülle)', 'Подпроекты (через запятую)')) + '<input class="ob-subs" style="' + inp + '" value="' + escapeHtml((p.subs || []).join(', ')) + '" placeholder="' + escapeHtml(p.no) + '.01, ' + escapeHtml(p.no) + '.02"></label>' +
+      '<div class="ob-msg" style="font-size:12px;margin-top:4px"></div></div>'; };
+    const m = smModal('<div style="font-weight:600;font-size:17px;margin-bottom:10px">' + escapeHtml(L2('Nesneler', 'Объекты')) + '</div>' +
+      '<div id="ob-list">' + list.map(row).join('') + '</div>' +
+      '<div style="border:1px dashed #7E9BB3;border-radius:10px;padding:10px;margin-top:6px"><b>' + escapeHtml(L2('Yeni nesne', 'Новый объект')) + '</b>' +
+      '<label style="display:block;font-size:12px;color:#556A7B;margin-top:6px">' + escapeHtml(L2('Numara', 'Номер')) + '<input id="ob-no" inputmode="numeric" style="' + inp + '" placeholder="477"></label>' +
+      '<label style="display:block;font-size:12px;color:#556A7B;margin-top:6px">' + escapeHtml(L2('Ad', 'Название')) + '<input id="ob-nm" style="' + inp + '"></label>' +
+      '<label style="display:block;font-size:12px;color:#556A7B;margin-top:6px">' + escapeHtml(L2('Alt projeler (virgülle, boş olabilir)', 'Подпроекты (через запятую, можно пусто)')) + '<input id="ob-sb" style="' + inp + '" placeholder="477.01, 477.02"></label>' +
+      '<div id="ob-nmsg" style="font-size:12px;margin-top:4px"></div><button type="button" class="pj-b solid" id="ob-add" style="margin-top:8px">' + escapeHtml(L2('Oluştur', 'Создать')) + '</button></div>' +
+      '<div style="display:flex;justify-content:flex-end;margin-top:12px"><button type="button" class="pj-b" id="ob-close">' + escapeHtml(L2('Kapat', 'Закрыть')) + '</button></div>');
+    let changed = false;
+    const save = async function (body, msgEl) {
+      msgEl.style.color = '#556A7B'; msgEl.textContent = L2('Kaydediliyor…', 'Сохраняю…');
+      try { const j = await api(Object.assign({ a: 'proj_put', token: pin }, body)); if (!j || !j.ok) throw new Error(j && j.error || 'error');
+        msgEl.style.color = '#3D7A5E'; msgEl.textContent = L2('Kaydedildi.', 'Сохранено.'); changed = true; return true; }
+      catch (e) { msgEl.style.color = '#B85C5A'; msgEl.textContent = (e.message === 'Failed to fetch' ? L2('İnternet yok', 'Нет интернета') : e.message); return false; }
+    };
+    m.box.querySelectorAll('.ob-it').forEach(function (it) {
+      it.querySelector('.ob-save').onclick = function () { save({ no: it.dataset.no, name: it.querySelector('.ob-name').value.trim(), subs: it.querySelector('.ob-subs').value }, it.querySelector('.ob-msg')); };
+    });
+    m.box.querySelector('#ob-add').onclick = async function () {
+      const no = m.box.querySelector('#ob-no').value.trim();
+      if (await save({ create: true, no: no, name: m.box.querySelector('#ob-nm').value.trim(), subs: m.box.querySelector('#ob-sb').value }, m.box.querySelector('#ob-nmsg'))) {
+        m.box.querySelector('#ob-nmsg').textContent = L2('Oluşturuldu. Montajcılara «Proje ata» ile verin.', 'Создан. Выдайте монтажникам кнопкой «Назначить проект».');
+      }
+    };
+    m.box.querySelector('#ob-close').onclick = async function () { m.o.remove(); if (changed) { try { await loadSahalar(); } catch (e) {} } };
+  }
+  $('ob-btn').addEventListener('click', obOpen);
   // ── Gönder ──
 
   // ════════ Этап 2: шахматки на Google Диске ════════
