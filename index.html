@@ -1487,9 +1487,9 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   function fillSahaSub(main) {
     const sS = $('saha-sub'), subs = (main && sahaSt.subs[main]) || [], cur = sS.value;
     if (!subs.length) { sS.style.display = 'none'; sS.innerHTML = ''; return false; }
-    const allOpt = smProjKeyExact(main) && subs.indexOf(main) < 0 ? '<option value="' + escapeHtml(main) + '">' + escapeHtml(main + ' — ' + L2('tüm alt projeler', 'все подпроекты')) + '</option>' : '';
+    const allOpt = smProjKeyExact(main) && subs.indexOf(main) < 0 ? '<option value="' + escapeHtml(main) + '">' + escapeHtml(main + ' — ' + L2('genel', 'общий')) + '</option>' : '';
     sS.innerHTML = '<option value="" disabled selected>' + escapeHtml(L2('Alt proje seçin…', 'Выберите подпроект…')) + '</option>' + allOpt + subs.map(function (n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
-    sS.style.display = ''; if (cur && subs.indexOf(cur) >= 0) sS.value = cur;
+    sS.style.display = ''; if (cur && (subs.indexOf(cur) >= 0 || (allOpt && cur === main))) sS.value = cur;
     return true;
   }
   function syncSahaUI() {
@@ -1497,7 +1497,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     const m = SAHA_SUB_RE.exec(v), main = m ? m[1] : v, mS = $('saha-main');
     if (sahaSt.mains.indexOf(main) < 0) return;
     mS.value = main; fillSahaSub(main);
-    if (m) $('saha-sub').value = v;
+    if (m) $('saha-sub').value = v; else if ($('saha-sub').querySelector('option[value="' + main + '"]')) $('saha-sub').value = main;
   }
   $('saha-main').addEventListener('change', function () {
     const main = this.value, has = fillSahaSub(main);
