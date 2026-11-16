@@ -37,17 +37,28 @@ header{position:sticky;top:0;z-index:5;background:var(--graphite);color:#fff;min
 #smhost{margin:10px 0 4px}
 #smhost .smh-t{font-size:12px;color:var(--steel);margin:0 0 6px}
 #smhost .smh-none{background:#FBECEC;border:1px solid #E7B9B8;color:#8A3B39;border-radius:10px;padding:9px 11px;font-size:13px}
-#smhost table{border-collapse:separate;border-spacing:4px;width:100%;table-layout:fixed}
-#smhost th{font-size:11px;font-weight:600;color:var(--steel);text-align:center;padding:0 2px;word-break:break-word}
-#smhost td{border:1px solid #C5CED8;border-radius:8px;background:#fff;text-align:center;padding:9px 3px;font-size:13px;font-weight:600;cursor:pointer;word-break:break-word;color:#2D2D40}
-#smhost td small{display:block;font-size:10px;font-weight:500;color:#556A7B}
-#smhost td.na{background:#F2F2F2;color:#B0B0B0;cursor:default;border-style:dashed}
-#smhost td.c.on,#smhost td.c.ton,#smhost td.c.son,#smhost td.c.hon{background:#2D6CDF;color:#fff;border-color:#2D6CDF}
-#smhost td.c.on small,#smhost td.c.ton small,#smhost td.c.son small,#smhost td.c.hon small{color:#E6EEFB}
-#smhost td.c.done,#smhost td.c.tdone{background:#C6EFCE;border-color:#6FAF95}
-#smhost td.c.part,#smhost td.c.tpart,#smhost td.c.avail{background:#FFF2CC;border-color:#B08F5C}
-#smhost td.c.sdone,#smhost td.c.hdone{background:#EFE3F7;border-color:#A27BC0}
-#smhost td.c.undo{background:#FFC7CE;border-color:#B85C5A}
+#smhost table.smv{border-collapse:separate;border-spacing:0 6px;width:100%;table-layout:fixed}
+#smhost table.smv th{text-align:left;font-size:13px;font-weight:600;color:#2D2D40;padding:10px 10px;background:#F2F5FA;border:1px solid #D9E1F2;border-right:0;border-radius:10px 0 0 10px;cursor:pointer;word-break:break-word;width:56%}
+#smhost table.smv td{font-size:0;border:1px solid #C5CED8;border-radius:0 10px 10px 0;background:#fff;text-align:center;padding:10px 6px;cursor:pointer;color:#2D2D40}
+#smhost table.smv td::after{font-size:13px;font-weight:600;content:'○ отметить'}
+#smhost table.smv td.na{cursor:default;background:#F2F2F2;border-style:dashed}
+#smhost table.smv td.na::after{content:'нет у этой двери';color:#9AA4AE;font-weight:500}
+#smhost table.smv td.on,#smhost table.smv td.ton,#smhost table.smv td.son,#smhost table.smv td.hon{background:#2D6CDF;border-color:#2D6CDF}
+#smhost table.smv td.on::after,#smhost table.smv td.ton::after,#smhost table.smv td.son::after,#smhost table.smv td.hon::after{content:'✓ отмечено сегодня';color:#fff}
+#smhost table.smv td.done{background:#C6EFCE;border-color:#6FAF95}
+#smhost table.smv td.done::after{content:'✓ уже установлено';color:#1F5F45}
+#smhost table.smv.m-teslim td.tdone{background:#C6EFCE;border-color:#6FAF95}
+#smhost table.smv.m-teslim td.tdone::after{content:'✓ уже сдано';color:#1F5F45}
+#smhost table.smv td.part,#smhost table.smv td.tpart{background:#FFF2CC;border-color:#B08F5C}
+#smhost table.smv td.part::after,#smhost table.smv td.tpart::after{content:'частично';color:#7A5B1E}
+#smhost table.smv td.avail{background:#FFF2CC;border-color:#B08F5C}
+#smhost table.smv td.avail::after{content:'○ можно сдать';color:#7A5B1E}
+#smhost table.smv td.off{background:#F2F2F2;cursor:default}
+#smhost table.smv td.off::after{content:'ещё не установлено';color:#9AA4AE;font-weight:500}
+#smhost table.smv td.sdone,#smhost table.smv td.hdone{background:#EFE3F7;border-color:#A27BC0}
+#smhost table.smv td.sdone::after,#smhost table.smv td.hdone::after{content:'✓ отмечено ранее';color:#5B3A78}
+#smhost table.smv td.undo{background:#FFC7CE;border-color:#B85C5A}
+#smhost table.smv td.undo::after{content:'✕ будет отменено';color:#8A3B39}
 #smhost .smh-hint{font-size:12px;color:var(--steel);margin-top:6px}
 .floors{display:flex;gap:6px;flex-wrap:wrap}
 .sync{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--eyebrow);border:1px solid rgba(255,255,255,.18);border-radius:var(--r-pill);padding:5px 12px}

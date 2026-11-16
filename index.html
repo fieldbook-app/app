@@ -692,6 +692,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* карточки */
   .pj-card{background:#fff!important;border:1px solid var(--soft)!important;border-radius:14px!important;box-shadow:var(--sh1);color:var(--ink2)!important}
   .work-list,.sm-scroll{background:#fff;border:1px solid var(--soft)!important;border-radius:12px!important;box-shadow:var(--sh1)!important;overflow:hidden}
+  .sm-scroll{overflow:auto!important}
   .work-row{border-bottom:1px solid var(--soft)!important}
   .work-row.checked{background:#F7F9FC!important}
   .work-check{border-radius:4px!important;border-color:var(--field)!important}
@@ -760,6 +761,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   div[style*="position:fixed;inset:0;background:rgba(0,0,0,.45)"]{background:rgba(45,45,64,.45)!important}
   div[style*="border-radius:12px"][style*="box-shadow:0 8px 30px"]{border-radius:14px!important;box-shadow:var(--sh3)!important;color:var(--ink2)!important}
   html body .sm-table,html body .sm-table td,html body .sm-table th,html body .sm-table td *,html body .sm-table th *{font-family:var(--font)!important}
+
+/* ── мастер «Что взять из файла?»: компактно, таблица на всю высоту (2026-11-16) ── */
+#mp-modal .box.mp-box{max-width:min(1500px,98vw)!important;width:98vw!important;height:95vh!important;max-height:95vh!important;padding:12px 16px!important}
+#mp-modal #mp-modes .mp-steps,#mp-modal .mp-steps{display:flex!important;flex-wrap:wrap!important;justify-content:center!important;gap:4px!important;max-width:none!important;margin:2px 0 4px!important}
+#mp-modal #mp-modes .mp-stb,#mp-modal .mp-stb{flex-direction:row!important;align-items:center!important;gap:6px!important;padding:3px 12px 3px 4px!important;border-width:1px!important;border-radius:9999px!important;transform:none!important;box-shadow:none!important;animation:none!important;min-height:0!important}
+#mp-modal #mp-modes .mp-stb i,#mp-modal .mp-stb i{width:20px!important;height:20px!important;line-height:18px!important;font-size:11px!important}
+#mp-modal #mp-modes .mp-stb b,#mp-modal .mp-stb b{font-size:13px!important;line-height:1.2!important}
+#mp-modal #mp-modes .mp-stb small,#mp-modal .mp-stb small{display:none!important}
+#mp-modal #mp-modes .mp-stb.cur,#mp-modal .mp-stb.cur{border:2px solid #2D2D40!important}
+#mp-modal #mp-roomq .rq-t,#mp-modal .rq-t{font-size:15px!important;margin:4px 0 6px!important;text-align:center}
+#mp-modal #mp-roomq .rq-b,#mp-modal .rq-b{gap:8px!important}
+#mp-modal #mp-roomq .rq-b button,#mp-modal .rq-b button{font-size:14px!important;padding:6px 22px!important;min-width:80px!important;border-radius:9999px!important}
+#mp-modal #mp-roomq .rq-b button.sel,#mp-modal .rq-b button.sel{box-shadow:0 0 0 2px #2D2D40!important}
+#mp-modal #mp-roomq .rq-s,#mp-modal .rq-s{font-size:13px!important;margin:4px 0 0!important;text-align:center}
+#mp-modal .mp-grid{flex:1 1 auto!important;min-height:40vh!important;margin-top:6px}
+#mp-modal .mp-grid,#mp-modal .mp-grid table,#mp-modal .mp-grid td,#mp-modal .mp-grid th{font-family:var(--font)!important}
+#mp-modal .mp-grid table{font-size:12.5px!important}
+#mp-modal .mp-grid th,#mp-modal .mp-grid th *{background-color:#2D2D40;color:#fff!important;font-weight:600}
+#mp-modal .mp-grid th .mp-role{background:#fff!important;color:#2D2D40!important}
+#mp-modal .mp-sum{margin:4px 0!important;max-height:70px!important}
+#mp-modal .box.mp-box .err{padding:6px 10px!important;margin:4px 0!important;font-size:13px!important}
+@media (max-width:700px){#mp-modal .box.mp-box{padding:8px!important;height:96vh!important;max-height:96vh!important}#mp-modal .mp-grid{min-height:45vh!important}}
 </style>
 </head>
 <body>
@@ -3988,11 +4011,13 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       if (!l.mine) { host.innerHTML = '<div class="smh-none" style="background:#F2F5FA;border-color:#D9E1F2;color:#556A7B">' + escapeHtml(L2('Başka alt proje', 'Дверь другого подпроекта') + (row.sub ? ': ' + row.sub : '')) + '</div>'; return; }
       const modeName = { montaj: L2('Montaj', 'Монтаж'), teslim: L2('Teslimat', 'Сдача'), sok: L2('Sök-tak', 'Снятие-установка'), hazir: L2('Hazır değil', 'Не готово') }[smMode];
       const its = smVisItems(sh).filter(function (it) { return it.door || smApplicable(sh, row, it); });
-      host.innerHTML = '<div class="smh-t">' + escapeHtml(L2('Şahmat', 'Шахматка') + ' · ' + row.blok + (row.kat == null || row.kat === '' ? '' : ' · ' + L2('kat', 'этаж') + ' ' + row.kat) + (row.room ? ' · ' + row.room : '') + ' · ' + L2('mod', 'режим') + ': ' + modeName) + '</div>' +
-        '<table><thead><tr>' + its.map(function (it) { return '<th>' + escapeHtml(it.door ? L2('Kapı', 'Дверь') : smItemLabel(it)) + '</th>'; }).join('') + '</tr></thead><tbody><tr>' +
-        its.map(function (it) { return smCellHtml(l.si, sh, row, it); }).join('') + '</tr></tbody></table>' +
-        '<div class="smh-hint">' + escapeHtml(L2('İşaretler günün raporuna eklenir — sonunda raporu gönderin.', 'Отметки попадут в сегодняшний отчёт — в конце дня проверьте и отправьте отчёт.')) + '</div>';
-      if (!host._mp) { host._mp = 1; host.addEventListener('click', async function (e) { await smGridClick(e); try { smRenderSum(); } catch (x) {} if (ICONMAP.win) ICONMAP.win.mapRefresh(); }); }
+      const modeHint = { montaj: L2('Nelerin takıldığını işaretleyin', 'Отметьте, что установлено'), teslim: L2('Teslim edileni işaretleyin', 'Отметьте, что сдано'), sok: L2('Sökülüp takılanı işaretleyin', 'Отметьте снятие-установку'), hazir: L2('Hazır olmayanı işaretleyin', 'Отметьте, что не готово') }[smMode];
+      host.innerHTML = '<div class="smh-t"><b>' + escapeHtml(L2('Mod', 'Режим') + ': ' + modeName) + '</b> · ' + escapeHtml(modeHint) + '</div>' +
+        '<table class="smv m-' + smMode + '"><tbody>' + its.map(function (it) {
+          const lab = it.door ? L2('Kapı', 'Дверь') + ' ' + row.mirka : smItemLabel(it);
+          return '<tr><th>' + escapeHtml(lab) + '</th>' + smCellHtml(l.si, sh, row, it) + '</tr>'; }).join('') + '</tbody></table>' +
+        '<div class="smh-hint">' + escapeHtml(L2('Satıra dokunun — işaret günün raporuna eklenir. Akşam raporu kontrol edip gönderin.', 'Нажмите на строку — отметка попадёт в сегодняшний отчёт. В конце дня проверьте и отправьте отчёт.')) + '</div>';
+      if (!host._mp) { host._mp = 1; host.addEventListener('click', async function (e) { const th = e.target.closest('th'); if (th && th.nextElementSibling && th.nextElementSibling.classList.contains('c')) { e = { target: th.nextElementSibling }; } await smGridClick(e); try { smRenderSum(); } catch (x) {} if (ICONMAP.win) ICONMAP.win.mapRefresh(); }); }
     },
     fetch: async function (u, o) {
       const k = ICONMAP.obj; let j;
