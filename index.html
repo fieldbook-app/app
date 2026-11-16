@@ -1609,7 +1609,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     return h;
   }
   const SM_DATE_SUFFIX = ' — дата';
-  const SM_EXCLUDE = /подпроект|шил|всего|кол-во|полот|этаж|номер|ширин|высот|остекл|сдано|заказ|отгруж|смонт/i;
+  const SM_EXCLUDE = /icon|подпроект|шил|всего|кол-во|^полотн|этаж|номер|ширин|высот|остекл|сдано|заказ|отгруж|смонт/i;
   let smWb = null, smFileName = '', smSheets = [], smCur = '', smSel = {}, smUndo = {}, smLabel = {}, smSnap = null;
   let smMode = 'montaj', smTes = {}, smTesUndo = {}, smSok = {}, smSokUndo = {}, smHaz = {}, smHazUndo = {}, smLpFired = false;
   const SM_SOK = 'Sök-tak', SM_INFO_SUF = ' (bilgi)', SM_HAZ = 'Hazır değil', SM_HAZ_WHY = 'Hazır değil sebep';
@@ -1643,12 +1643,12 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     wb.worksheets.forEach(function (ws) {
       if (ws.name === 'Montaj Kayıt' || ws.name === 'Rapor' || ws.name === 'Revizyonlar' || ws.name === 'Revizyon Detay' || ws.name === 'Sök-Tak' || ws.name === 'Hazır Değil' || ws.name === 'Spek') return;
       const h = smHeaderRow(ws); if (!h) return;
-      const cM = h.cM, cB = h.map['блок'], cK = h.map['этаж'], cSub = h.map['подпроект'] || 0;
+      const cM = h.cM, cB = h.map['блок'], cK = h.map['этаж'], cSub = h.map['подпроект'] || 0, cIc = h.map[Object.keys(h.map).find(function (k) { return /icon/.test(k); }) || ''] || 0;
       const rows = [], cancelled = [], cS = h.map['durum'] || null;
       for (let r = h.r + 1; r <= ws.rowCount; r++) {
         const m = smTxt(smVal(ws.getRow(r).getCell(cM)));
         if (!m) continue;
-        const rw = { r: r, mirka: m, blok: smTxt(smVal(ws.getRow(r).getCell(cB))), kat: smVal(ws.getRow(r).getCell(cK)), sub: cSub ? smTxt(smVal(ws.getRow(r).getCell(cSub))) : '' };
+        const rw = { r: r, mirka: m, blok: smTxt(smVal(ws.getRow(r).getCell(cB))), kat: smVal(ws.getRow(r).getCell(cK)), sub: cSub ? smTxt(smVal(ws.getRow(r).getCell(cSub))) : '', icon: cIc ? (Number(smVal(ws.getRow(r).getCell(cIc))) || 0) : 0 };
         if (cS && smIsCancel(smVal(ws.getRow(r).getCell(cS)))) { cancelled.push(rw); continue; }
         rows.push(rw);
       }
@@ -2281,6 +2281,19 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   function pName(p) { return lang === 'tr' || lang === 'uz' ? p.tr : p.ru; }
   let mp = null;
   function mpLetter(c) { let x = '', n = c; while (n > 0) { const m = (n - 1) % 26; x = String.fromCharCode(65 + m) + x; n = Math.floor((n - 1) / 26); } return x; }
+  function mpHeadName(ws, hr, c) {
+    let base = mpTxt(ws, hr, c); if (!base) return '';
+    let grp = hr > 1 ? mpTxt(ws, hr - 1, c) : '';
+    if (!grp && hr > 1 && /^пасс?ивн/i.test(base)) grp = mpTxt(ws, hr - 1, c - 1);
+    base = base.replace(/\s*\d+$/, '').replace(/^пасивн/i, 'пассивн');
+    return grp ? grp + ' — ' + base.charAt(0).toLowerCase() + base.slice(1) : base;
+  }
+  function mpFindHead(st, re) {
+    const ws = st.ws, hr = st.list ? st.list.hr : 0, maxC = Math.min(ws.columnCount || 1, 160);
+    if (!hr) return 0;
+    for (let c = 1; c <= maxC; c++) if (re.test(mpTxt(ws, hr, c))) return c;
+    return 0;
+  }
   function mpTxt(ws, r, c) { return r >= 1 && c >= 1 ? cvClean(cvVal(ws.getRow(r).getCell(c))) : ''; }
   function mpFl(ws, r, c) { return r >= 1 && c >= 1 ? cvFloorNum(cvVal(ws.getRow(r).getCell(c))) : null; }
   const MP_STEPS = { list: ['door', 'room', 'info', 'acc', 'block'], matrix: ['door', 'floor', 'acc', 'block'] };
@@ -2314,13 +2327,14 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     if (v === true) return 1;
     if (typeof v === 'number') return v >= 2 ? 2 : (v >= 1 ? 1 : 0);
     const x = cvClean(v); if (!x || x === '0' || x.charAt(0) === '#') return 0;
+    if (/^(нет|нету|не\s*требуется|no|yok|-|—|–)$/i.test(String(x).trim())) return 0;
     const n = Number(x.replace(',', '.')); if (!isNaN(n)) return n >= 2 ? 2 : (n >= 1 ? 1 : 0);
     return 1;
   }
   function mpAccHeads(st) {   // seçilebilir aksesuar sütunları: başlık satırındaki dolu başlıklar
     const g = st.list, out = [], ws = st.ws, maxC = Math.min(ws.columnCount || 1, 120);
     if (!g || g.hr < 1) return out;
-    for (let c = 1; c <= maxC; c++) { const h = mpTxt(ws, g.hr, c); if (h && !g.dc[c] && !(g.rc && g.rc[c]) && !(g.ic && g.ic[c])) out.push({ c: c, h: h }); }
+    for (let c = 1; c <= maxC; c++) { const h = mpHeadName(ws, g.hr, c); if (h && !g.dc[c] && !(g.rc && g.rc[c]) && !(g.ic && g.ic[c])) out.push({ c: c, h: h }); }
     return out;
   }
   // ── matris düzeni: kat × kapı ──
@@ -2682,7 +2696,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       m.sheets.forEach(function (st) {
         const mapN = {};
         if (st.list) mpKeys(st.list.acc).forEach(function (c) {
-          let nm = mpTxt(st.ws, st.list.hr, c); if (!nm) return;
+          let nm = mpHeadName(st.ws, st.list.hr, c); if (!nm) return;
           if (mapN[nm]) nm = nm + ' (' + mpLetter(c) + ')';
           mapN[nm] = c; if (accNames.indexOf(nm) < 0) accNames.push(nm);
         });
@@ -2700,7 +2714,9 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       infoMap.push(mapI);
     });
     const roomOn = m.path === 'list' && m.room === true && m.sheets.some(function (st) { return st.list && mpKeys(st.list.rc || {}).length; });
-    ws.addRow(['Проект', 'Блок', 'Этаж', SM_DOOR_H, 'Источник'].concat(roomOn ? [SM_ROOM] : []).concat(accNames).concat(infoNames));
+    const auto = m.sheets.map(function (st) { return st.list ? { b: mpFindHead(st, /^блок$/i), k: mpFindHead(st, /^этаж$/i), n: mpFindHead(st, /по\s*плану\s*icon|^№\s*icon$/i) } : {}; });
+    const hasIc = m.path === 'list' && auto.some(function (a) { return a.n; });
+    ws.addRow(['Проект', 'Блок', 'Этаж', SM_DOOR_H, 'Источник'].concat(roomOn ? [SM_ROOM] : []).concat(accNames).concat(infoNames).concat(hasIc ? ['№ ICON'] : []));
     ws.getRow(1).font = { bold: true };
     [10, 22, 8, 38, 22, 30].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
     let n = 0;
@@ -2711,7 +2727,9 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
         mpListLabelRows(st).forEach(function (r) {
           n++;
           const vals = accNames.map(function (nm) { const c = accMap[si][nm]; if (!c) return null; const a = mpAccVal(st.ws, r, c); return a ? a : null; });
-          ws.addRow([m.proj, blk, null, mpListLabel(st, r).slice(0, 80), st.ws.name + '!' + mpLetter(mpKeys(st.list.dc)[0]) + r].concat(roomOn ? [mpKeys(st.list.rc || {}).map(function (c) { return mpTxt(st.ws, r, c); }).filter(Boolean).join(' · ').slice(0, 60)] : []).concat(vals).concat(infoNames.map(function (nm) { const c = infoMap[si][nm]; return c ? (mpTxt(st.ws, r, c) || null) : null; })));
+          const A = auto[si] || {}, bv = A.b ? mpTxt(st.ws, r, A.b) : blk, kv = A.k ? cvVal(st.ws.getRow(r).getCell(A.k)) : null;
+          const ic = hasIc ? [A.n ? (Number(cvVal(st.ws.getRow(r).getCell(A.n))) || null) : null] : [];
+          ws.addRow([m.proj, bv, (kv === '' || kv == null) ? null : kv, mpListLabel(st, r).slice(0, 80), st.ws.name + '!' + mpLetter(mpKeys(st.list.dc)[0]) + r].concat(roomOn ? [mpKeys(st.list.rc || {}).map(function (c) { return mpTxt(st.ws, r, c); }).filter(Boolean).join(' · ').slice(0, 60)] : []).concat(vals).concat(infoNames.map(function (nm) { const c = infoMap[si][nm]; return c ? (mpTxt(st.ws, r, c) || null) : null; })).concat(ic));
         });
       });
     } else {
@@ -3833,10 +3851,11 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
         const looks = seen.some(function (x) { return /(^|\D)\d+\.\d{1,2}($|\D)/.test(x) || /^\d{1,2}$/.test(x); });
         cols.push({ c: c, letter: mpLetter(c), head: head, seen: seen, looks: looks });
       }
+      const gx = cols.find(function (x) { return /под\s*проект|подпроект|alt\s*proje/i.test(x.head); }), guessC = gx ? gx.c : 0;
       const m = smModal('<div style="font-weight:600;font-size:17px;margin-bottom:6px">' + escapeHtml(L2('Alt proje numarası hangi sütunda?', 'В каком столбце № подпроекта?')) + '</div>' +
         '<div style="font-size:13px;color:#556A7B;margin-bottom:12px">' + escapeHtml(L2('Montajcı yalnız kendi alt projesinin kapılarını görecek. Boş hücre — kapı tüm alt projeler için ortak.', 'Монтажник увидит только двери своего подпроекта. Пустая ячейка — дверь общая для всех подпроектов.')) + '</div>' +
-        '<label style="display:block;padding:9px 10px;border:1px solid #E3E8EF;border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="radio" name="sbc" value="" checked> <b>' + escapeHtml(L2('Yok — şartname tüm alt projeler için ortak', 'Нет — спецификация общая для всех подпроектов')) + '</b></label>' +
-        cols.map(function (x) { return '<label style="display:block;padding:9px 10px;border:1px solid ' + (x.looks ? '#7E9BB3' : '#E3E8EF') + ';border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="radio" name="sbc" value="' + x.c + '"> <b>' + x.letter + '</b>' + (x.head ? ' — ' + escapeHtml(x.head.slice(0, 40)) : '') + '<br><small style="color:#556A7B">' + escapeHtml(x.seen.join(' · ').slice(0, 80)) + '</small></label>'; }).join('') +
+        '<label style="display:block;padding:9px 10px;border:1px solid #E3E8EF;border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="radio" name="sbc" value=""' + (guessC ? '' : ' checked') + '> <b>' + escapeHtml(L2('Yok — şartname tüm alt projeler için ortak', 'Нет — спецификация общая для всех подпроектов')) + '</b></label>' +
+        cols.map(function (x) { return '<label style="display:block;padding:9px 10px;border:1px solid ' + (x.looks ? '#7E9BB3' : '#E3E8EF') + ';border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="radio" name="sbc" value="' + x.c + '"' + (x.c === guessC ? ' checked' : '') + '> <b>' + x.letter + '</b>' + (x.head ? ' — ' + escapeHtml(x.head.slice(0, 40)) : '') + '<br><small style="color:#556A7B">' + escapeHtml(x.seen.join(' · ').slice(0, 80)) + '</small></label>'; }).join('') +
         '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;position:sticky;bottom:0;background:#fff;padding-top:8px"><button type="button" class="pj-b" id="sbc-c">' + escapeHtml(L2('İptal', 'Отмена')) + '</button><button type="button" class="pj-b solid" id="sbc-o">' + escapeHtml(L2('Kaydet', 'Сохранить')) + '</button></div>');
       m.box.querySelector('#sbc-c').onclick = function () { m.o.remove(); res(null); };
       m.box.querySelector('#sbc-o').onclick = function () { const v = m.box.querySelector('input[name=sbc]:checked').value; m.o.remove(); res(v ? { sheet: sheetName, col: Number(v), self: !!(refs[0] && refs[0].self) } : ''); };
@@ -3918,11 +3937,12 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   function mpLink(map) {
     const L = { door: {}, rows: 0, sheets: smSheets }; if (!smSheets.length) return L;
     const doors = {}; map.floors.forEach(function (f) { f.doors.forEach(function (d) { if (!d.mark) return; const k = mpNormBld(f.bld) + '|' + mpNormMark(d.mark); (doors[k] = doors[k] || []).push({ d: d, f: f, num: f.num, rooms: (d.rooms || []).map(function (x) { return mpRooms(x)[0] || x; }) }); }); });
-    const used = {};
+    const used = {}, byN = {};
+    map.floors.forEach(function (f) { f.doors.forEach(function (d) { if (d.n) byN[d.n] = d; }); });
     smSheets.forEach(function (sh, si) {
       const all = sh.allRows || sh.rows, mine = {}; sh.rows.forEach(function (r) { mine[r.r] = 1; });
       const groups = {};
-      all.forEach(function (row) { const k = mpNormBld(row.blok) + '|' + mpNormMark(row.mirka); (groups[k] = groups[k] || []).push(row); L.rows++; });
+      all.forEach(function (row) { const dn = row.icon && byN[row.icon]; if (dn && !used[dn.id]) { used[dn.id] = 1; L.door[dn.id] = { si: si, row: row, mine: !!mine[row.r] }; L.rows++; return; } const k = mpNormBld(row.blok) + '|' + mpNormMark(row.mirka); (groups[k] = groups[k] || []).push(row); L.rows++; });
       Object.keys(groups).forEach(function (k) {
         const cand = (doors[k] || []).filter(function (x) { return !used[x.d.id]; }); if (!cand.length) return;
         const rows = groups[k], pairs = [];
@@ -3967,7 +3987,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       const sh = smSheets[l.si], row = l.row;
       if (!l.mine) { host.innerHTML = '<div class="smh-none" style="background:#F2F5FA;border-color:#D9E1F2;color:#556A7B">' + escapeHtml(L2('Başka alt proje', 'Дверь другого подпроекта') + (row.sub ? ': ' + row.sub : '')) + '</div>'; return; }
       const modeName = { montaj: L2('Montaj', 'Монтаж'), teslim: L2('Teslimat', 'Сдача'), sok: L2('Sök-tak', 'Снятие-установка'), hazir: L2('Hazır değil', 'Не готово') }[smMode];
-      const its = smVisItems(sh);
+      const its = smVisItems(sh).filter(function (it) { return it.door || smApplicable(sh, row, it); });
       host.innerHTML = '<div class="smh-t">' + escapeHtml(L2('Şahmat', 'Шахматка') + ' · ' + row.blok + (row.kat == null || row.kat === '' ? '' : ' · ' + L2('kat', 'этаж') + ' ' + row.kat) + (row.room ? ' · ' + row.room : '') + ' · ' + L2('mod', 'режим') + ': ' + modeName) + '</div>' +
         '<table><thead><tr>' + its.map(function (it) { return '<th>' + escapeHtml(it.door ? L2('Kapı', 'Дверь') : smItemLabel(it)) + '</th>'; }).join('') + '</tr></thead><tbody><tr>' +
         its.map(function (it) { return smCellHtml(l.si, sh, row, it); }).join('') + '</tr></tbody></table>' +

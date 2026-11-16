@@ -112,6 +112,7 @@ svg#map{width:100%;height:100%;display:block;user-select:none;-webkit-user-selec
 .rlab text{font:600 34px var(--font);fill:var(--graphite);text-anchor:middle;dominant-baseline:central}
 .rlab{pointer-events:none}
 .dmark{font:500 20px var(--font);fill:var(--steel);pointer-events:none}
+.dmark .dnum{font-weight:700;fill:#2D2D40}
 .door{cursor:pointer}
 .door circle{stroke-width:2;vector-effect:non-scaling-stroke}
 .door.s0 circle{fill:#fff;stroke:#7F7F7F}
@@ -299,7 +300,7 @@ let F=null, view={x:0,y:0,k:1}, sel=null, filter=null;
 const doorEls={}, roomEls={};
 function st(id){const m=marks[id]||{};if(m.gone)return 4;if(m.ext)return 3;return IM.doorSt(id)}
 const ST_TXT=['не стоит','не полный комплект','готово','не наша','убрана по проекту'];
-const nm=d=>d.mark||'Без марки';
+const nm=d=>(d.mark||'Без марки')+(d.n?' · №'+d.n:'');
 const counted=()=>F.doors.filter(d=>st(d.id)<3);
 function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -330,7 +331,7 @@ function showFloor(i,keepView,keepSel){
   [['light','ly-light'],['med','ly-med'],['door','ly-door'],['dark','ly-dark']].forEach(([k,c])=>{
     if(F.layers[k]) el('path',{d:F.layers[k],class:'ly '+c},vp)});
   const gT=el('g',{},vp);
-  F.doors.forEach(d=>{if(!d.mark||(d.tx==null&&!d.custom))return;const tx=d.tx!=null?d.tx:d.x+42,ty=d.ty!=null?d.ty:d.y+7;const t=el('text',{x:tx,y:ty,class:'dmark',transform:d.rot?`rotate(${-d.rot} ${tx} ${ty})`:''},gT);t.textContent=d.mark});
+  F.doors.forEach(d=>{if(!d.mark||(d.tx==null&&!d.custom))return;const tx=d.tx!=null?d.tx:d.x+42,ty=d.ty!=null?d.ty:d.y+7;const t=el('text',{x:tx,y:ty,class:'dmark',transform:d.rot?`rotate(${-d.rot} ${tx} ${ty})`:''},gT);t.textContent=d.mark;if(d.n){const q=el('tspan',{class:'dnum',dx:8},t);q.textContent='№'+d.n}});
   const gL=el('g',{},vp);
   F.rooms.forEach(r=>{const g=el('g',{class:'rlab'},gL);const w=Math.max(90,r.id.length*21+28);
     el('rect',{x:r.x-w/2,y:r.y-24,width:w,height:48,rx:24},g);const t=el('text',{x:r.x,y:r.y},g);t.textContent=r.id});
@@ -438,7 +439,7 @@ const q=document.getElementById('q'),res=document.getElementById('res');
 const norm=s=>s.toLowerCase().replace(/\s/g,'').replace(/a/g,'а');
 q.oninput=()=>{const v=norm(q.value);if(!v){res.innerHTML='';return}const out=[];
   FLOORS.forEach((f,fi)=>{f.rooms.forEach(r=>{if(norm(r.id).includes(v))out.push({fi,t:'r',id:r.id,label:'№ '+r.id,sub:fl(f)})});
-    f.doors.forEach(d=>{if(d.mark&&norm(d.mark).includes(v))out.push({fi,t:'d',id:d.id,label:d.mark,sub:fl(f)+(d.rooms.length?' · '+d.rooms.join(', '):'')})})});
+    f.doors.forEach(d=>{if(d.mark&&(norm(d.mark).includes(v)||(d.n&&('№'+d.n===v||String(d.n)===v))))out.push({fi,t:'d',id:d.id,label:nm(d),sub:fl(f)+(d.rooms.length?' · '+d.rooms.join(', '):'')})})});
   res.innerHTML=out.slice(0,60).map((o,i)=>`<div data-i="${i}"><span>${esc(o.label)}</span><small>${esc(o.sub)}</small></div>`).join('')||'<small style="padding:6px 10px;color:var(--steel)">Ничего не найдено</small>';
   res.querySelectorAll('[data-i]').forEach(e=>e.onclick=()=>{const o=out[+e.dataset.i];if(FLOORS[o.fi]!==F)showFloor(o.fi);select(o.t,o.id,true)})};
 // export / import
