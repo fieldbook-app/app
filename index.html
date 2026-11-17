@@ -4275,7 +4275,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     if (!d) return false;
     const smN = Object.keys(d.sm || {}).some(function (k) { return (d.sm[k] || []).length; });
     const f = d.form || {};
-    return smN || (f.rows || []).some(function (x) { return x.c; }) || !!(f.ac || '').trim();
+    return smN || (f.rows || []).some(function (x) { return x.c; });
   }
   function drSave() {
     if (!drReady || drBlock || drAsking || !reporter || drUser !== reporter) return;
@@ -4327,21 +4327,66 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     let b = $('dr-banner');
     if (!drDate) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('div'); b.id = 'dr-banner'; b.style.cssText = 'background:#fff8e1;border:1px solid #e6c76a;color:#6b5200;border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:14px;font-weight:600'; let n = $('tarih'); while (n.parentElement && n.parentElement !== form) n = n.parentElement; if (n.parentElement === form) form.insertBefore(b, n); else { const fs = $('form-screen'); fs.insertBefore(b, fs.firstChild); } }
-    b.textContent = L2('Gönderilmemiş rapor: ', 'Неотправленный отчёт за ') + drFmt(drDate) + L2(' — bu tarihle gönderilecek.', ' — он будет отправлен этой датой.');
+    b.textContent = L2('Gönderilmemiş rapor: ', 'Не отправлен отчёт за ') + drFmt(drDate) + L2(' — bu tarihle gönderilecek. Gönderdikten sonra yeni gün başlar.', '. Он уйдёт этой датой. После отправки начнётся новый день.');
     $('tarih').value = drDate;
   }
-  function drAsk(d) {
+  function drIsMgr() { return APP_ROLE !== 'montajci'; }
+  function drOldKey() { return 'mj_draft_old_' + (reporter || '_'); }
+  function drOldGet() { try { return JSON.parse(localStorage.getItem(drOldKey()) || '[]') || []; } catch (e) { return []; } }
+  function drOldSet(a) { try { if (a.length) localStorage.setItem(drOldKey(), JSON.stringify(a)); else localStorage.removeItem(drOldKey()); } catch (e) {} drOldBar(); }
+  function drPlace(b) { let n = $('tarih'); while (n.parentElement && n.parentElement !== form) n = n.parentElement; if (n.parentElement === form) form.insertBefore(b, n); else { const fs = $('form-screen'); fs.insertBefore(b, fs.firstChild); } }
+  function drOldBar() {
+    let b = $('dr-old'); const a = drIsMgr() && reporter ? drOldGet() : [];
+    if (!a.length) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'dr-old'; b.style.cssText = 'background:#EEF3FA;border:1px solid #C9D6E8;color:#2D2D40;border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:13.5px'; drPlace(b); }
+    b.innerHTML = '<b>' + escapeHtml(L2('Ertelenen gönderilmemiş raporlar:', 'Отложенные неотправленные отчёты:')) + '</b> ' +
+      a.map(function (d, i) { return '<button type="button" data-i="' + i + '" style="margin:4px 6px 0 0;padding:4px 10px;border-radius:999px;border:1px solid #9FB3CC;background:#fff;font-size:13px;font-weight:600;cursor:pointer">' + escapeHtml(drFmt(d.date) + (d.saha ? ' · ' + d.saha : '')) + '</button>'; }).join('');
+    b.querySelectorAll('button[data-i]').forEach(function (x) { x.onclick = function () { const L = drOldGet(), k = +x.dataset.i; if (L[k]) drAsk(L[k], k); }; });
+  }
+  function drAsk(d, oldIdx) {
+    if (drAsking) return;
     drAsking = true;
+    const mgr = drIsMgr(), old = oldIdx != null;
     const o = document.createElement('div');
     o.id = 'dr-ask'; o.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,40,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-    o.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)">' +
+    const bs = 'padding:10px 16px;border-radius:999px;font-weight:700;cursor:pointer;';
+    o.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)">' +
       '<div style="font-size:17px;font-weight:700;margin-bottom:8px;color:#2D2D40">' + escapeHtml(L2('Gönderilmemiş rapor', 'Неотправленный отчёт')) + '</div>' +
-      '<div style="font-size:14px;color:#556A7B;margin-bottom:16px">' + escapeHtml(L2('Gönderilmemiş bir rapor var: ', 'Есть неотправленный отчёт за ') + drFmt(d.date) + (d.saha ? ' · ' + d.saha : '') + '. ' + L2('Açılsın mı, silinsin mi?', 'Открыть его или удалить?')) + '</div>' +
-      '<div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" id="dr-del" style="padding:10px 16px;border-radius:999px;border:1px solid #C5CED8;background:#fff;color:#2D2D40;font-weight:600">' + escapeHtml(L2('Sil', 'Удалить')) + '</button>' +
-      '<button type="button" id="dr-open" style="padding:10px 16px;border-radius:999px;border:0;background:#2D2D40;color:#fff;font-weight:700">' + escapeHtml(L2('Aç', 'Открыть')) + '</button></div></div>';
+      '<div style="font-size:14px;color:#556A7B;margin-bottom:16px">' + escapeHtml(L2('Gönderilmemiş rapor var: ', 'Не отправлен отчёт за ') + drFmt(d.date) + (d.saha ? ' · ' + d.saha : '') + '. ' +
+        (mgr ? L2('Açın, erteleyin veya silin.', 'Открыть его, отложить или удалить?') : L2('Yeni güne başlamak için önce bu raporu gönderin.', 'Чтобы начать новый день, сначала отправьте его.'))) + '</div>' +
+      '<div id="dr-ask-msg" style="display:none;font-size:13px;color:#B42318;margin:-6px 0 12px"></div>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">' +
+      (mgr ? '<button type="button" id="dr-del" style="' + bs + 'border:1px solid #E3A3A3;background:#fff;color:#B42318">' + escapeHtml(L2('Sil', 'Удалить')) + '</button>' +
+             '<button type="button" id="dr-later" style="' + bs + 'border:1px solid #C5CED8;background:#fff;color:#2D2D40">' + escapeHtml(L2('Sonra', 'Позже')) + '</button>' : '') +
+      '<button type="button" id="dr-open" style="' + bs + 'border:0;background:#2D2D40;color:#fff">' + escapeHtml(mgr ? L2('Aç', 'Открыть') : L2('Raporu aç', 'Открыть отчёт')) + '</button></div></div>';
     document.body.appendChild(o);
-    o.querySelector('#dr-open').onclick = function () { o.remove(); drAsking = false; drDate = d.date; drBanner(); drStart(d); };
-    o.querySelector('#dr-del').onclick = function () { o.remove(); drAsking = false; try { localStorage.removeItem(drKey()); } catch (e) {} drStart(null); };
+    const close = function () { o.remove(); drAsking = false; };
+    const resync = function () { if (smProj && smSheets.length) drOnActivate(smProj); };
+    o.querySelector('#dr-open').onclick = function () {
+      if (old) {
+        const cur = drLoad();
+        if (drHasWork(cur) || drDate) { const m = o.querySelector('#dr-ask-msg'); m.style.display = 'block'; m.textContent = L2('Önce açık raporu gönderin.', 'Сначала отправьте текущий отчёт — потом откройте этот.'); return; }
+        const L = drOldGet(); L.splice(oldIdx, 1); drOldSet(L);
+        try { localStorage.setItem(drKey(), JSON.stringify(d)); } catch (e) {}
+      }
+      close(); drDate = d.date; drBlock = false; drBanner(); drStart(d);
+    };
+    if (mgr) {
+      o.querySelector('#dr-later').onclick = function () {
+        close();
+        if (!old) { const L = drOldGet(); L.push(d); drOldSet(L); try { localStorage.removeItem(drKey()); } catch (e) {} drStart(null); }
+        else resync();
+        drOldBar();
+      };
+      const del = o.querySelector('#dr-del');
+      del.onclick = function () {
+        if (!del.dataset.sure) { del.dataset.sure = '1'; del.textContent = L2('Emin misiniz? Sil', 'Точно удалить?'); return; }
+        close();
+        if (old) { const L = drOldGet(); L.splice(oldIdx, 1); drOldSet(L); resync(); }
+        else { try { localStorage.removeItem(drKey()); } catch (e) {} drStart(null); }
+        drOldBar();
+      };
+    }
   }
   function drStart(d) {
     drReady = true; drSmOk = {};
@@ -4355,11 +4400,19 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     if (!Object.keys(sahalar || {}).length) return;
     drUser = reporter; drReady = false; drBlock = false; drDate = null; drLast = '';
     const d = drLoad();
-    if (!d || d.user !== reporter) { drStart(null); return; }
-    if (d.date === localToday()) { drStart(d); return; }
-    if (drHasWork(d)) drAsk(d); else { try { localStorage.removeItem(drKey()); } catch (e) {} drStart(null); }
+    if (d && d.user === reporter && d.date !== localToday() && drHasWork(d)) { drAsk(d, null); return; }
+    if (d && (d.user !== reporter || d.date !== localToday())) { try { localStorage.removeItem(drKey()); } catch (e) {} }
+    drStart(d && d.user === reporter && d.date === localToday() ? d : null);
+    drOldBar();
+    if (drIsMgr()) { const L = drOldGet(); if (L.length) drAsk(L[0], 0); }
   }
-  setInterval(function () { try { drInit(); drSave(); } catch (e) {} }, 1500);
+  // приложение не закрывали через полночь — тот же вопрос, как при входе
+  function drDayCheck() {
+    if (!drReady || drAsking || drDate || drBlock || !reporter) return;
+    const d = drLoad();
+    if (d && d.user === reporter && d.date !== localToday() && drHasWork(d)) drUser = null;
+  }
+  setInterval(function () { try { drDayCheck(); drInit(); drSave(); } catch (e) {} }, 1500);
   document.addEventListener('visibilitychange', function () { if (document.hidden) drSave(); });
   window.addEventListener('pagehide', drSave);
   document.addEventListener('change', function () { setTimeout(drSave, 0); }, true);

@@ -82,6 +82,20 @@ header{position:sticky;top:0;z-index:5;background:var(--graphite);color:#fff;min
 .def .res{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ink)}
 .def .res input{width:16px;height:16px;accent-color:var(--steel)}
 .pend{color:var(--st-warn-b);font-weight:600}
+.dbadge.rq circle{fill:#E08A1E}
+.def.rq{border-left-color:#E08A1E}
+.dfix{display:flex;gap:8px;align-items:center;font-size:12.5px;color:#1E6B3A;background:#EAF7EE;border-radius:8px;padding:6px 8px}
+.dfix img{width:44px;height:44px;border-radius:6px;object-fit:cover;cursor:zoom-in;border:1px solid var(--line-soft);flex:none}
+.dreq{font-size:12.5px;background:#FFF4E5;border:1px solid #F3C27A;color:#7A4A00;border-radius:8px;padding:6px 8px}
+.drej{font-size:12px;color:var(--steel)}
+.dhist{font-size:11.5px;color:var(--steel);background:var(--card);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:3px}
+.dform{border:1.5px dashed var(--steel-lt);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.dform img{width:100%;max-height:180px;object-fit:contain;border-radius:6px;background:#fff}
+.dform .btns{display:flex;gap:8px;flex-wrap:wrap;margin:0}
+.dform button{padding:6px 12px;font-size:12.5px}
+#reqList{display:flex;flex-direction:column;gap:6px}
+#reqList button{text-align:left;background:#FFF4E5;border:1px solid #F3C27A;border-radius:10px;padding:8px 10px;font-size:13px;color:var(--ink);font-weight:600;cursor:pointer}
+#reqList button small{display:block;font-weight:400;color:#7A4A00;margin-top:2px}
 .compose{border:1.5px dashed var(--steel-lt);border-radius:var(--r-md);background:var(--card);padding:10px;display:flex;flex-direction:column;gap:8px}
 .compose img{width:100%;max-height:220px;object-fit:contain;border-radius:8px;background:#fff}
 .compose textarea,.def textarea{width:100%;resize:vertical;margin:0}
@@ -256,6 +270,10 @@ h2{font-size:18px;font-weight:600;color:var(--graphite);margin:0 0 4px}
       <input class="search" id="q" placeholder="Номер помещения или марка двери" autocomplete="off">
       <div class="results" id="res"></div>
     </div>
+    <div class="panel" id="reqPanel" hidden>
+      <div class="eyebrow">Запросы на удаление дефектов</div>
+      <div id="reqList"></div>
+    </div>
     <div class="panel" id="card">
       <div class="sub">Нажмите на помещение или на кружок двери на плане.</div>
     </div>
@@ -357,11 +375,11 @@ function showFloor(i,keepView,keepSel){
   refreshDoors(); stats(); renderCard();
   if(!keepView){lastW=box.clientWidth;fit();}
 }
-function refreshDoors(){const OD=openDefMap();F.doors.forEach(d=>{const g=doorEls[d.id];const s=st(d.id);const nd=OD[d.id]||0;
+function refreshDoors(){const OD=openDefMap();const RQ={};for(const k in DEFS)if(DEFS[k].req)RQ[DEFS[k].door]=1;F.doors.forEach(d=>{const g=doorEls[d.id];const s=st(d.id);const nd=OD[d.id]||0;
   const dim=filter==='def'?!nd:(filter!==null&&filter!==s);
   g.setAttribute('class','door s'+s+(d.custom?' cust':'')+(sel&&sel.t==='d'&&sel.id===d.id?' sel':'')+(dim?' dim':'')+(s<3?IM.doorCls(d.id):''));
   g.querySelector('path.gone').style.display=s===4?'':'none';
-  const b=g.querySelector('.dbadge');b.style.display=nd?'':'none';if(nd)b.querySelector('text').textContent=nd;
+  const b=g.querySelector('.dbadge');const rq=!!RQ[d.id];b.style.display=(nd||rq)?'':'none';b.classList.toggle('rq',rq);if(nd||rq)b.querySelector('text').textContent=nd||'!';
   g.querySelector('path.ok').style.display=s===2?'':'none';g.querySelector('path.x').style.display=s===3?'':'none';})}
 function stats(){
   const c=[0,0,0,0,0];F.doors.forEach(d=>c[st(d.id)]++);const n=c[0]+c[1]+c[2];
@@ -487,14 +505,14 @@ function mergeServer(sm,first){let ch=false;
   if(ch){save();if(syncCustom())showFloor(FLOORS.indexOf(F),true,true);else{refreshDoors();stats();if(!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#card')))renderCard()}}}
 async function pull(first){const u=syncUrl();if(!u||busy)return;busy=true;
   try{const r=await fetch(u+(u.includes('?')?'&':'?')+'key='+encodeURIComponent(SYNC_KEY)+'&dev='+encodeURIComponent(DEV)+'&_='+Date.now());const j=await r.json();
-    if(!j.ok)throw new Error(j.error||'error');lastOk=Date.now();lastErr='';mergeServer(j.marks||{},first);mergeDefects(j.defects)}
+    if(!j.ok)throw new Error(j.error||'error');lastOk=Date.now();lastErr='';mergeServer(j.marks||{},first);(setMgr(j),mergeDefects(j.defects))}
   catch(e){lastErr=String(e)}finally{busy=false;setChip()}
   if(first&&Object.keys(pending).length)flush();if(OPS.length)flushDefects()}
 async function flush(){const u=syncUrl();setChip();if(!u||busy)return;const ids=Object.keys(pending);if(!ids.length)return;busy=true;
   const sent={};const changes=ids.slice(0,150).map(id=>{sent[id]=JSON.stringify(marks[id]||{});return{id,data:marks[id]||{},meta:meta(id)}});
   try{const r=await fetch(u,{method:'POST',body:JSON.stringify({key:SYNC_KEY,dev:DEV,changes})});const j=await r.json();if(!j.ok)throw new Error(j.error||'error');
     for(const id in sent){if(JSON.stringify(marks[id]||{})===sent[id])delete pending[id]}LS('icon-map-'+IM.obj+'-pending',JSON.stringify(pending));
-    lastOk=Date.now();lastErr='';busy=false;mergeServer(j.marks||{},false);mergeDefects(j.defects)}
+    lastOk=Date.now();lastErr='';busy=false;mergeServer(j.marks||{},false);(setMgr(j),mergeDefects(j.defects))}
   catch(e){lastErr=String(e);busy=false}
   setChip();if(Object.keys(pending).length&&!lastErr)setTimeout(flush,300)}
 function renderSyncBox(){const b=document.getElementById('syncBox');const u=syncUrl();
@@ -524,6 +542,8 @@ const MAXDEF=10;
 let DEFS={},OPS=[];try{DEFS=JSON.parse(LS('icon-map-'+IM.obj+'-defs')||'{}')||{}}catch(e){DEFS={}}try{OPS=JSON.parse(LS('icon-map-'+IM.obj+'-defops')||'[]')||[]}catch(e){OPS=[]}
 const DEV=LS('icon-door-dev')||(()=>{const v='dv'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);LS('icon-door-dev',v);return v})();
 let compose=null,editDef=null,askDel=null;
+let MGR=false,photoMode='def',fixFor=null,fixComp=null,reqFor=null,rejFor=null,mdelFor=null,histOpen={};
+function setMgr(j){if(j&&'mgr' in j){const v=!!j.mgr;if(v!==MGR){MGR=v;setTimeout(()=>{renderReqs();if(!cardBusy())renderCard()},0)}}}
 function saveDefs(){LS('icon-map-'+IM.obj+'-defs',JSON.stringify(DEFS));LS('icon-map-'+IM.obj+'-defops',JSON.stringify(OPS))}
 function defsOf(id){return Object.values(DEFS).filter(x=>x.door===id).sort((a,b)=>(a.t||0)-(b.t||0))}
 function openDefMap(){const m={};for(const k in DEFS){const x=DEFS[k];if(!x.resolved)m[x.door]=(m[x.door]||0)+1}return m}
@@ -545,27 +565,54 @@ async function compress(file,max=1600,q=0.78){const url=URL.createObjectURL(file
 // --- карточка
 const fdt=t=>t?new Date(t).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 function defsHTML(d){const L=defsOf(d.id);const full=L.length>=MAXDEF;
-  const items=L.map((x,i)=>`<div class="def${x.resolved?' done':''}" data-df="${esc(x.id)}">
-    <img class="ph" data-ph="${esc(x.id)}" alt="Фото дефекта ${i+1}">
+  const items=L.map((x,i)=>{const id=x.id;const pend=!!x.pend;
+    const hist=(x.hist||[]);
+    const fixB=x.resolved?`<div class="dfix">${x.fix&&x.fix.ph!==false?`<img data-ph="fix:${esc(id)}" alt="Фото устранения">`:''}<span>✓ Устранён${x.fix?' · '+esc(x.fix.who||'')+' · '+fdt(x.fix.t):''}</span></div>`:'';
+    const reqB=x.req?`<div class="dreq"><b>Запрошено удаление</b>: ${esc(x.req.why||'')}<br><span style="opacity:.8">${esc(x.req.who||'')} · ${fdt(x.req.t)} · ждёт решения руководителя</span></div>`:'';
+    const rejB=!x.req&&x.rej?`<div class="drej">${esc(x.rej.replace(/^отклонено/,'Запрос на удаление отклонён'))}</div>`:'';
+    let form='';
+    if(fixFor===id&&!fixComp)form=`<div class="dform"><b>Фото устранения обязательно</b><div class="btns"><button class="primary" data-fcam>📷 Сфотографировать</button><button class="flat" data-fpick>Выбрать из галереи</button><button class="linkbtn" data-fx>Отмена</button></div></div>`;
+    else if(fixComp&&fixComp.id===id)form=`<div class="dform"><img data-fprev alt="Фото устранения"><div class="btns"><button class="primary" data-fok>Подтвердить: устранён</button><button class="flat" data-fcam>Переснять</button><button class="linkbtn" data-fx>Отмена</button></div></div>`;
+    else if(reqFor===id)form=`<div class="dform"><b>Почему удалить?</b><textarea class="field" id="rqText" rows="2" placeholder="Например: сфотографировал не ту дверь"></textarea><div class="btns"><button class="primary" data-rqok>Отправить запрос</button><button class="linkbtn" data-rqx>Отмена</button></div></div>`;
+    else if(rejFor===id)form=`<div class="dform"><b>Отклонить запрос?</b><textarea class="field" id="rjText" rows="2" placeholder="Причина (по желанию)"></textarea><div class="btns"><button class="primary" data-rjok>Отклонить</button><button class="linkbtn" data-rjx>Отмена</button></div></div>`;
+    else if(mdelFor===id)form=`<div class="dform"><b>Удалить дефект с карты?</b><span style="color:var(--steel)">Запись и фото останутся в таблице с пометкой, кто и когда удалил.</span><textarea class="field" id="mdText" rows="2" placeholder="Причина${x.req?'':' (по желанию)'}">${x.req?esc(x.req.why||''):''}</textarea><div class="btns"><button class="primary" data-mdok>Да, удалить</button><button class="linkbtn" data-mdx>Отмена</button></div></div>`;
+    else if(askDel===id)form=`<div class="delask">Отменить этот дефект? Он ещё не отправлен.<button class="primary" data-dyes>Да</button><button class="linkbtn" data-dno>Нет</button></div>`;
+    const acts=[];
+    if(!form&&editDef!==id){
+      if(!x.resolved&&!pend)acts.push('<button class="linkbtn" data-fix>✓ Устранён…</button>');
+      if(x.resolved&&MGR&&!pend)acts.push('<button class="linkbtn" data-reopen>Снять «устранён»</button>');
+      if(x.mine||MGR)acts.push('<button class="linkbtn" data-ed>Изменить</button>');
+      if(pend&&x.mine)acts.push('<button class="linkbtn" data-del>Отменить</button>');
+      else if(MGR&&!pend){if(x.req)acts.push('<button class="linkbtn" data-mdel>Удалить по запросу</button><button class="linkbtn" data-rej>Отклонить запрос</button>');else acts.push('<button class="linkbtn" data-mdel>Удалить</button>')}
+      else if(x.mine&&!x.req&&!pend)acts.push('<button class="linkbtn" data-rq>Запросить удаление</button>')}
+    return `<div class="def${x.resolved?' done':''}${x.req?' rq':''}" data-df="${esc(id)}">
+    <img class="ph" data-ph="${esc(id)}" alt="Фото дефекта ${i+1}">
     <div class="dbody">
-      <div class="dtext">${editDef===x.id?`<textarea class="field" id="eText" rows="3">${esc(x.comment||'')}</textarea>
+      <div class="dtext">${editDef===id?`<textarea class="field" id="eText" rows="3">${esc(x.comment||'')}</textarea>
         <div class="btns"><button class="primary" data-esave>Сохранить</button><button class="linkbtn" data-ecancel>Отмена</button></div>`:
         `<b>${i+1}.</b> ${x.comment?esc(x.comment):'<i style="color:var(--steel)">без комментария</i>'}`}</div>
-      <div class="dmeta">${esc(x.who||'—')} · ${fdt(x.t)}${x.pend?' · <span class="pend">не отправлено</span>':''}</div>
-      ${askDel===x.id?`<div class="delask">Удалить дефект и фото безвозвратно?<button class="primary" data-dyes>Да, удалить</button><button class="linkbtn" data-dno>Отмена</button></div>`:
-      `<div class="dact"><label class="res"><input type="checkbox" data-res${x.resolved?' checked':''}>Устранён</label>
-        ${x.mine&&editDef!==x.id?'<button class="linkbtn" data-ed>Изменить</button><button class="linkbtn" data-del>Удалить</button>':''}</div>`}
-    </div></div>`).join('');
+      <div class="dmeta">${esc(x.who||'—')} · ${fdt(x.t)}${pend?' · <span class="pend">не отправлено</span>':''}${hist.length?` · <button class="linkbtn" data-hist>история (${hist.length})</button>`:''}</div>
+      ${histOpen[id]&&hist.length?`<div class="dhist">${hist.map(h=>'<span>'+esc(h)+'</span>').join('')}</div>`:''}
+      ${fixB}${reqB}${rejB}${form}
+      ${acts.length?`<div class="dact">${acts.join('')}</div>`:''}
+    </div></div>`}).join('');
   const comp=compose&&compose.door===d.id?`<div class="compose"><img id="cImg" alt="Новое фото дефекта">
     <textarea class="field" id="cText" rows="3" placeholder="Что не так? Например: скол на полотне снизу">${esc(compose.comment||'')}</textarea>
     <div class="btns"><button class="primary" id="cSave">Сохранить дефект</button><button class="flat" id="cRetake">Переснять</button><button class="linkbtn" id="cCancel">Отмена</button></div></div>`:'';
   const add=compose?'':full?'<div class="note">Достигнут предел — 10 дефектов на дверь.</div>':
     '<div class="camrow"><button class="primary" id="bCam">📷 Сфотографировать дефект</button><button class="flat" id="bPick">Выбрать фото</button></div>';
   return `<div class="defs"><div class="eyebrow">Дефекты · ${L.length} из ${MAXDEF}</div>${comp}${items}${add}<div id="defMsg" hidden></div></div>`}
+function renderReqs(){const p=document.getElementById('reqPanel');if(!p)return;if(!MGR){p.hidden=true;return}
+  const L=Object.values(DEFS).filter(x=>x.req).sort((a,b)=>(a.req.t||0)-(b.req.t||0));p.hidden=false;
+  const box=document.getElementById('reqList');
+  if(!L.length){p.hidden=true;box.innerHTML='';return}
+  box.innerHTML=L.map(x=>{const z=DIDX[x.door];const nm=z?((z.d.mark||'Без марки')+(z.d.n?' · №'+z.d.n:'')+' · '+z.f.bld+' · '+z.f.name):x.door;
+    return `<button data-go="${esc(x.door)}">${esc(nm)}<small>${esc(x.req.who||'')} · ${fdt(x.req.t)}: ${esc(x.req.why||'')}</small></button>`}).join('');
+  box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>window.mapGoto(b.dataset.go))}
 function defMsg(t,ok){const m=document.getElementById('defMsg');if(!m)return;m.hidden=false;m.className='msg '+(ok?'ok':'err');m.textContent=t}
 function bindDefs(c,d){
   c.querySelectorAll('img[data-ph]').forEach(im=>{const id=im.dataset.ph;photo(id).then(src=>{if(src)im.src=src;else im.alt='фото недоступно'});
-    im.onclick=()=>{const x=DEFS[id];if(!im.src)return;document.getElementById('vImg').src=im.src;document.getElementById('vCap').textContent=x?(x.comment||'')+(x.who?' — '+x.who:'')+' · '+fdt(x.t):'';document.getElementById('viewer').hidden=false}});
+    im.onclick=()=>{const fx=/^fix:/.test(id);const x=DEFS[fx?id.slice(4):id];if(fx&&x){if(!im.src)return;document.getElementById('vImg').src=im.src;document.getElementById('vCap').textContent='Устранено'+(x.fix?' — '+(x.fix.who||'')+' · '+fdt(x.fix.t):'');document.getElementById('viewer').hidden=false;return}if(!im.src)return;document.getElementById('vImg').src=im.src;document.getElementById('vCap').textContent=x?(x.comment||'')+(x.who?' — '+x.who:'')+' · '+fdt(x.t):'';document.getElementById('viewer').hidden=false}});
   const q=s=>c.querySelector(s);
   if(q('#bCam'))q('#bCam').onclick=()=>startPhoto(d,'fCam');
   if(q('#bPick'))q('#bPick').onclick=()=>startPhoto(d,'fPick');
@@ -574,22 +621,42 @@ function bindDefs(c,d){
   if(q('#cCancel'))q('#cCancel').onclick=()=>{compose=null;renderCard()};
   if(q('#cRetake'))q('#cRetake').onclick=()=>startPhoto(d,'fCam');
   if(q('#cSave'))q('#cSave').onclick=()=>saveCompose(d);
-  c.querySelectorAll('[data-df]').forEach(row=>{const id=row.dataset.df;const x=DEFS[id];const b=s=>row.querySelector(s);
-    if(b('[data-res]'))b('[data-res]').onchange=e=>{x.resolved=e.target.checked;if(x.pend)saveDefs();else{OPS.push({op:'editDefect',id,resolved:x.resolved});saveDefs();flushDefects()}refreshDoors();stats();renderCard()};
-    if(b('[data-ed]'))b('[data-ed]').onclick=()=>{editDef=id;askDel=null;renderCard();const t=document.getElementById('eText');if(t)t.focus()};
-    if(b('[data-ecancel]'))b('[data-ecancel]').onclick=()=>{editDef=null;renderCard()};
-    if(b('[data-esave]'))b('[data-esave]').onclick=()=>{const v=document.getElementById('eText').value.trim();x.comment=v;editDef=null;
-      if(!x.pend)OPS.push({op:'editDefect',id,comment:v});saveDefs();flushDefects();renderCard()};
-    if(b('[data-del]'))b('[data-del]').onclick=()=>{askDel=id;editDef=null;renderCard()};
-    if(b('[data-dno]'))b('[data-dno]').onclick=()=>{askDel=null;renderCard()};
-    if(b('[data-dyes]'))b('[data-dyes]').onclick=()=>{askDel=null;
-      if(x.pend){OPS=OPS.filter(o=>o.id!==id);IDB.del(id);delete MEMPH[id]}else OPS.push({op:'delDefect',id});
-      delete DEFS[id];saveDefs();flushDefects();refreshDoors();stats();renderCard()};
-  })}
+  c.querySelectorAll('[data-df]').forEach(row=>{const id=row.dataset.df;const x=DEFS[id];const b=s=>row.querySelector(s);if(!x)return;
+    const after=()=>{saveDefs();flushDefects();refreshDoors();stats();renderReqs();renderCard()};
+    const on=(s,f)=>{const e=b(s);if(e)e.onclick=f};
+    on('[data-hist]',()=>{histOpen[id]=!histOpen[id];renderCard()});
+    on('[data-fix]',()=>{fixFor=id;fixComp=null;reqFor=rejFor=mdelFor=askDel=null;editDef=null;renderCard()});
+    on('[data-fcam]',()=>{photoMode='fix';fixFor=id;photoFor=d;const f=document.getElementById('fCam');f.value='';f.click()});
+    on('[data-fpick]',()=>{photoMode='fix';fixFor=id;photoFor=d;const f=document.getElementById('fPick');f.value='';f.click()});
+    on('[data-fx]',()=>{fixFor=null;fixComp=null;renderCard()});
+    if(b('[data-fprev]')&&fixComp)b('[data-fprev]').src=fixComp.src;
+    on('[data-fok]',()=>{if(!fixComp||fixComp.id!==id)return;const t=Date.now();MEMPH['fix:'+id]=fixComp.src;IDB.put('fix:'+id,fixComp.src);
+      x.resolved=true;x.fix={who:me(),t,ph:true};OPS.push({op:'resolveDefect',id,t});fixFor=null;fixComp=null;after()});
+    on('[data-reopen]',()=>{x.resolved=false;x.fix=null;OPS.push({op:'reopenDefect',id});after()});
+    on('[data-ed]',()=>{editDef=id;askDel=null;fixFor=reqFor=rejFor=mdelFor=null;renderCard();const t=document.getElementById('eText');if(t)t.focus()});
+    on('[data-ecancel]',()=>{editDef=null;renderCard()});
+    on('[data-esave]',()=>{const v=document.getElementById('eText').value.trim();editDef=null;if(v===(x.comment||'')){renderCard();return}x.comment=v;
+      if(!x.pend)OPS.push({op:'editDefect',id,comment:v});after()});
+    on('[data-rq]',()=>{reqFor=id;fixFor=rejFor=mdelFor=null;renderCard();const t=document.getElementById('rqText');if(t)t.focus()});
+    on('[data-rqx]',()=>{reqFor=null;renderCard()});
+    on('[data-rqok]',()=>{const v=document.getElementById('rqText').value.trim();if(!v){defMsg('Напишите, почему нужно удалить.');return}
+      const t=Date.now();x.req={who:me(),t,why:v};x.rej='';OPS.push({op:'reqDelDefect',id,why:v,t});reqFor=null;after();defMsg('Запрос отправлен руководителю.',true)});
+    on('[data-rej]',()=>{rejFor=id;mdelFor=null;renderCard()});
+    on('[data-rjx]',()=>{rejFor=null;renderCard()});
+    on('[data-rjok]',()=>{const v=document.getElementById('rjText').value.trim();x.req=null;x.rej='отклонено · '+me()+(v?' · '+v:'');OPS.push({op:'rejectDelDefect',id,why:v});rejFor=null;after()});
+    on('[data-mdel]',()=>{mdelFor=id;rejFor=null;renderCard()});
+    on('[data-mdx]',()=>{mdelFor=null;renderCard()});
+    on('[data-mdok]',()=>{const v=document.getElementById('mdText').value.trim();OPS.push({op:'delDefect',id,why:v});delete DEFS[id];mdelFor=null;after()});
+    on('[data-del]',()=>{askDel=id;editDef=null;renderCard()});
+    on('[data-dno]',()=>{askDel=null;renderCard()});
+    on('[data-dyes]',()=>{askDel=null;if(!x.pend)return;OPS=OPS.filter(o=>o.id!==id);IDB.del(id);delete MEMPH[id];delete DEFS[id];after()});
+  });
+  }
 let photoFor=null;
-function startPhoto(d,inp){if(false){const w=document.getElementById('who');w.focus();w.scrollIntoView({block:'center'});defMsg('Сначала впишите своё имя в поле «Кто отмечает» (блок «Общая таблица») — оно попадёт в ведомость дефектов.');return}
+function startPhoto(d,inp){photoMode='def';if(false){const w=document.getElementById('who');w.focus();w.scrollIntoView({block:'center'});defMsg('Сначала впишите своё имя в поле «Кто отмечает» (блок «Общая таблица») — оно попадёт в ведомость дефектов.');return}
   photoFor=d;const f=document.getElementById(inp);f.value='';f.click()}
 async function onPhoto(e){const file=e.target.files&&e.target.files[0];if(!file||!photoFor)return;const d=photoFor;
+  if(photoMode==='fix'){photoMode='def';try{const src=await compress(file);if(fixFor){fixComp={id:fixFor,src};if(sel&&sel.id===d.id)renderCard()}}catch(err){defMsg('Не удалось прочитать фото. Попробуйте ещё раз.')}return}
   try{const src=await compress(file);compose={door:d.id,src,comment:compose&&compose.door===d.id?compose.comment:''};if(sel&&sel.id===d.id)renderCard()}
   catch(err){defMsg('Не удалось прочитать фото. Попробуйте ещё раз.')}}
 document.getElementById('fCam').onchange=onPhoto;document.getElementById('fPick').onchange=onPhoto;
@@ -604,21 +671,28 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementB
 // --- синхронизация дефектов
 function mergeDefects(list){if(!Array.isArray(list))return;const nd={};list.forEach(x=>{nd[x.id]=x});
   for(const o of OPS){if(o.op==='addDefect'){if(DEFS[o.id]&&!nd[o.id])nd[o.id]={...DEFS[o.id],pend:true}}
-    else if(o.op==='editDefect'&&nd[o.id]){if(o.comment!=null)nd[o.id].comment=o.comment;if(o.resolved!=null)nd[o.id].resolved=o.resolved}
+    else if(o.op==='editDefect'&&nd[o.id]){if(o.comment!=null)nd[o.id].comment=o.comment}
+    else if(o.op==='resolveDefect'&&nd[o.id]){if(!nd[o.id].resolved){nd[o.id].resolved=true;nd[o.id].fix={who:me(),t:o.t,ph:true}}}
+    else if(o.op==='reopenDefect'&&nd[o.id]){nd[o.id].resolved=false;nd[o.id].fix=null}
+    else if(o.op==='reqDelDefect'&&nd[o.id]){nd[o.id].req={who:me(),t:o.t,why:o.why};nd[o.id].rej=''}
+    else if(o.op==='rejectDelDefect'&&nd[o.id]){nd[o.id].req=null}
     else if(o.op==='delDefect')delete nd[o.id]}
-  for(const id in DEFS)if(!nd[id]){IDB.del(id);delete MEMPH[id]}
-  if(JSON.stringify(DEFS)===JSON.stringify(nd))return;DEFS=nd;saveDefs();refreshDoors();stats();if(!cardBusy())renderCard()}
+  for(const id in DEFS)if(!nd[id]){IDB.del(id);delete MEMPH[id];IDB.del('fix:'+id);delete MEMPH['fix:'+id]}
+  if(JSON.stringify(DEFS)===JSON.stringify(nd)){renderReqs();return}DEFS=nd;saveDefs();refreshDoors();stats();renderReqs();if(!cardBusy())renderCard()}
 let busyD=false;
 async function flushDefects(){const u=syncUrl();setChip();if(!u||busyD||!OPS.length)return;busyD=true;
   try{while(OPS.length){const o=OPS[0];const body={key:SYNC_KEY,op:o.op,dev:DEV,who:me(),id:o.id};
       if(o.op==='addDefect'){const x=DEFS[o.id];const ph=await photoLocal(o.id);if(!x||!ph){OPS.shift();saveDefs();continue}
         body.defect={id:x.id,door:x.door,comment:x.comment,t:x.t,who:x.who};body.meta=meta(x.door);body.photo=ph.slice(ph.indexOf(',')+1)}
-      else if(o.op==='editDefect'){if(o.comment!=null)body.comment=o.comment;if(o.resolved!=null)body.resolved=o.resolved}
+      else if(o.op==='editDefect'){if(o.comment!=null)body.comment=o.comment;else{OPS.shift();saveDefs();continue}}
+      else if(o.op==='resolveDefect'){const ph=await photoLocal('fix:'+o.id);if(!ph){OPS.shift();saveDefs();continue}body.photo=ph.slice(ph.indexOf(',')+1);body.t=o.t}
+      else if(o.op==='reqDelDefect'){body.why=o.why;body.t=o.t}
+      else if(o.op==='rejectDelDefect'||o.op==='delDefect'){body.why=o.why||''}
       const r=await fetch(u,{method:'POST',body:JSON.stringify(body)});const j=await r.json();
-      if(!j.ok&&j.error!=='limit'&&j.error!=='not owner')throw new Error(j.error||'error');
+      if(!j.ok&&!['limit','not owner','need photo','need reason'].includes(j.error))throw new Error(j.error||'error');
       OPS.shift();saveDefs();
-      if(!j.ok){if(j.error==='limit'){delete DEFS[o.id];saveDefs();defMsg('Дефект не сохранён: у двери уже 10 дефектов.')}else defMsg('Менять и удалять дефект может только тот, кто его снял.');pull(false);continue}
-      lastOk=Date.now();lastErr='';if(o.op==='addDefect'&&DEFS[o.id])DEFS[o.id].pend=false;mergeDefects(j.defects);if(j.marks)mergeServer(j.marks,false);setChip()}}
+      if(!j.ok){if(j.error==='limit'){delete DEFS[o.id];saveDefs();defMsg('Дефект не сохранён: у двери уже 10 дефектов.')}else defMsg(j.error==='need photo'?'Без фото отметить «устранён» нельзя.':j.error==='need reason'?'Укажите причину запроса.':'Нет прав на это действие.');pull(false);continue}
+      lastOk=Date.now();lastErr='';if(o.op==='addDefect'&&DEFS[o.id])DEFS[o.id].pend=false;(setMgr(j),mergeDefects(j.defects));if(j.marks)mergeServer(j.marks,false);setChip()}}
   catch(e){lastErr=String(e)}finally{busyD=false;setChip()}}
 // --- Excel с фото
 async function shrink(src,max){const im=await loadImg(src);const k=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight));
