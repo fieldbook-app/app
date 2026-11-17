@@ -2788,6 +2788,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     $('sm-file-name').textContent = (note ? note + ' | ' : '') + proj + ' — ' + smSheets.map(function (sh) { return sh.name + ': ' + sh.rows.length; }).join(' · ');
     $('sm-open-btn').disabled = false;
     smRenderSum();
+    try { drOnActivate(proj); } catch (e) {}
     return true;
   }
   function smNameOk(name, proj) { const esc = proj.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return new RegExp('^\\s*' + esc + '(?![0-9])').test(name); }
@@ -4247,6 +4248,124 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   function showStatus(text) { statusEl.className = 'status show err'; statusEl.textContent = text; }
 
+  // ── Черновик дня (stage3d): всё, что отмечено за день, хранится в телефоне до отправки отчёта ──
+  var drReady = false, drUser = null, drBlock = false, drDate = null, drLast = '', drSmOk = {}, drAsking = false;
+  function drKey() { return 'mj_draft_' + (reporter || '_'); }
+  function drLoad() { try { return JSON.parse(localStorage.getItem(drKey()) || 'null'); } catch (e) { return null; } }
+  function drObjs() { return [smSel, smUndo, smLabel, smTes, smTesUndo, smSok, smSokUndo, smHaz, smHazUndo]; }
+  function drSetObjs(a) { smSel = a[0]; smUndo = a[1]; smLabel = a[2]; smTes = a[3]; smTesUndo = a[4]; smSok = a[5]; smSokUndo = a[6]; smHaz = a[7]; smHazUndo = a[8]; }
+  function drEnc() {
+    const out = [];
+    drObjs().forEach(function (o, i) {
+      Object.keys(o || {}).forEach(function (k) {
+        const p = k.split('|'), sh = smSheets[+p[0]];
+        if (sh && o[k] !== undefined && o[k] !== null && o[k] !== false) out.push([i, sh.name, p[1], p[2], o[k]]);
+      });
+    });
+    return out;
+  }
+  function drForm() {
+    return {
+      rows: rows().map(function (r) { return { id: r.dataset.id, c: r.querySelector('.work-check').checked, q: r.querySelector('.work-qty').value, n: r.querySelector('.work-note').value }; })
+        .filter(function (x) { return x.c || x.q || x.n; }),
+      kisi: $('kisi').value || '', km: $('kisi-manuel').value || '', ac: $('aciklama').value || '', st: ($('saha-tanim') && $('saha-tanim').value) || ''
+    };
+  }
+  function drHasWork(d) {
+    if (!d) return false;
+    const smN = Object.keys(d.sm || {}).some(function (k) { return (d.sm[k] || []).length; });
+    const f = d.form || {};
+    return smN || (f.rows || []).some(function (x) { return x.c; }) || !!(f.ac || '').trim();
+  }
+  function drSave() {
+    if (!drReady || drBlock || drAsking || !reporter || drUser !== reporter) return;
+    try {
+      const prev = drLoad() || {};
+      const d = { v: 1, user: reporter, saha: sahaInput.value.trim(), form: drForm(), sm: Object.assign({}, prev.sm || {}) };
+      d.date = drDate || (drHasWork(prev) && prev.date) || localToday();
+      const pk = smProjKey(d.saha);
+      if (smProj && smProj === pk && drSmOk[smProj] && smSheets.length) { const e = drEnc(); if (e.length) d.sm[smProj] = e; else delete d.sm[smProj]; }
+      if (!drHasWork(d) && !(d.form.rows.length || d.form.kisi)) { if (localStorage.getItem(drKey()) !== null) localStorage.removeItem(drKey()); drLast = ''; return; }
+      const j = JSON.stringify(d);
+      if (j !== drLast) { localStorage.setItem(drKey(), j); drLast = j; }
+    } catch (e) {}
+  }
+  function drClear() { try { localStorage.removeItem(drKey()); } catch (e) {} drLast = ''; drBlock = true; drDate = null; drBanner(); }
+  function drApplyForm(d) {
+    const f = d.form || {};
+    if (d.saha && sahaInput.value.trim() !== d.saha) { sahaInput.value = d.saha; applySahaSelection(); }
+    try { mpBtn(); } catch (e) {}
+    (f.rows || []).forEach(function (x) {
+      const r = rows().find(function (r) { return r.dataset.id === x.id; }); if (!r) return;
+      const cb = r.querySelector('.work-check');
+      if (cb.checked !== !!x.c) { cb.checked = !!x.c; r.classList.toggle('checked', cb.checked); }
+      r.querySelector('.work-qty').value = x.q || ''; r.querySelector('.work-note').value = x.n || '';
+      try { updateStats(r); } catch (e) {}
+    });
+    if (f.kisi) { $('kisi').value = f.kisi; $('kisi-manuel').style.display = f.kisi === 'manuel' ? 'block' : 'none'; }
+    if (f.km) $('kisi-manuel').value = f.km;
+    if (f.ac) $('aciklama').value = f.ac;
+    if (f.st && $('saha-tanim')) $('saha-tanim').value = f.st;
+  }
+  function drOnActivate(proj) {
+    drSmOk[proj] = true;
+    if (drAsking || !drReady) { drSmOk[proj] = false; return; }
+    const d = drLoad(); if (!d || drUser !== reporter) return;
+    const list = (d.sm || {})[proj]; if (!list || !list.length) return;
+    const objs = drObjs().map(function (o) { return Object.assign({}, o); });
+    let n = 0;
+    list.forEach(function (x) {
+      const si = smSheets.findIndex(function (sh) { return sh.name === x[1]; }); if (si < 0) return;
+      objs[x[0]][si + '|' + x[2] + '|' + x[3]] = x[4]; n++;
+    });
+    drSetObjs(objs);
+    try { smRefreshAll(); } catch (e) {}
+    try { if ($('mp-page').classList.contains('open') && ICONMAP.win) ICONMAP.win.mapRefresh(); } catch (e) {}
+  }
+  function drFmt(iso) { const p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso; }
+  function drBanner() {
+    let b = $('dr-banner');
+    if (!drDate) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'dr-banner'; b.style.cssText = 'background:#fff8e1;border:1px solid #e6c76a;color:#6b5200;border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:14px;font-weight:600'; let n = $('tarih'); while (n.parentElement && n.parentElement !== form) n = n.parentElement; if (n.parentElement === form) form.insertBefore(b, n); else { const fs = $('form-screen'); fs.insertBefore(b, fs.firstChild); } }
+    b.textContent = L2('Gönderilmemiş rapor: ', 'Неотправленный отчёт за ') + drFmt(drDate) + L2(' — bu tarihle gönderilecek.', ' — он будет отправлен этой датой.');
+    $('tarih').value = drDate;
+  }
+  function drAsk(d) {
+    drAsking = true;
+    const o = document.createElement('div');
+    o.id = 'dr-ask'; o.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,40,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+    o.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)">' +
+      '<div style="font-size:17px;font-weight:700;margin-bottom:8px;color:#2D2D40">' + escapeHtml(L2('Gönderilmemiş rapor', 'Неотправленный отчёт')) + '</div>' +
+      '<div style="font-size:14px;color:#556A7B;margin-bottom:16px">' + escapeHtml(L2('Gönderilmemiş bir rapor var: ', 'Есть неотправленный отчёт за ') + drFmt(d.date) + (d.saha ? ' · ' + d.saha : '') + '. ' + L2('Açılsın mı, silinsin mi?', 'Открыть его или удалить?')) + '</div>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" id="dr-del" style="padding:10px 16px;border-radius:999px;border:1px solid #C5CED8;background:#fff;color:#2D2D40;font-weight:600">' + escapeHtml(L2('Sil', 'Удалить')) + '</button>' +
+      '<button type="button" id="dr-open" style="padding:10px 16px;border-radius:999px;border:0;background:#2D2D40;color:#fff;font-weight:700">' + escapeHtml(L2('Aç', 'Открыть')) + '</button></div></div>';
+    document.body.appendChild(o);
+    o.querySelector('#dr-open').onclick = function () { o.remove(); drAsking = false; drDate = d.date; drBanner(); drStart(d); };
+    o.querySelector('#dr-del').onclick = function () { o.remove(); drAsking = false; try { localStorage.removeItem(drKey()); } catch (e) {} drStart(null); };
+  }
+  function drStart(d) {
+    drReady = true; drSmOk = {};
+    if (d) drApplyForm(d);
+    if (smProj && smSheets.length) drOnActivate(smProj);
+  }
+  function drInit() {
+    if (drAsking) return;
+    if (!reporter || !pin) { drReady = false; drUser = null; return; }
+    if (drUser === reporter) return;
+    if (!Object.keys(sahalar || {}).length) return;
+    drUser = reporter; drReady = false; drBlock = false; drDate = null; drLast = '';
+    const d = drLoad();
+    if (!d || d.user !== reporter) { drStart(null); return; }
+    if (d.date === localToday()) { drStart(d); return; }
+    if (drHasWork(d)) drAsk(d); else { try { localStorage.removeItem(drKey()); } catch (e) {} drStart(null); }
+  }
+  setInterval(function () { try { drInit(); drSave(); } catch (e) {} }, 1500);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) drSave(); });
+  window.addEventListener('pagehide', drSave);
+  document.addEventListener('change', function () { setTimeout(drSave, 0); }, true);
+  document.addEventListener('input', function () { setTimeout(drSave, 0); }, true);
+  document.addEventListener('click', function () { setTimeout(drSave, 50); }, true);
+
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
     statusEl.className = 'status';
@@ -4290,7 +4409,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
 
     const data = {
       rapor_id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      tarih: localToday(),
+      tarih: drDate || localToday(),
       saha: sahaInput.value.trim(),
       is: items.map(function (it) { return it.label + ': ' + it.adet + ' adet' + (it.not ? ' (' + it.not + ')' : ''); }).join('; '),
       is_kalemleri: items,
@@ -4321,6 +4440,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       // Yapılan adetleri yerelde de güncelle (kalan hemen doğru görünsün)
       if (aktifPlan) items.forEach(function (it) { if (aktifPlan.items[it.id]) aktifPlan.items[it.id].yapilan += it.adet; });
       const smOzet = smApply(sm, data);
+      drClear();
       showSuccess(false, t('success_saved') + ' ' + ozet + smOzet);
       if (data.sm_k) setTimeout(smSyncAll, 300);
     } catch (err) {
@@ -4329,7 +4449,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       else {
         setOutbox(getOutbox().concat([data]));
         if (aktifPlan) items.forEach(function (it) { if (aktifPlan.items[it.id]) aktifPlan.items[it.id].yapilan += it.adet; });
-        const smOzetQ = smApply(sm, data);     // grs_v13: kuyruğa girse de işaretler temizlensin, ikinci kez gönderilmesin
+        const smOzetQ = smApply(sm, data); drClear();     // grs_v13: kuyruğa girse de işaretler temizlensin, ikinci kez gönderilmesin
         showSuccess(true, t('queued_detail') + ' ' + ozet + smOzetQ);
       }
     } finally {
@@ -4351,6 +4471,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     const saha = sahaInput.value;
     form.reset();
     $('kisi-manuel').style.display = 'none';
+    drBlock = false; drDate = null; drBanner();
     $('tarih').value = localToday();
     // Aynı kişi aynı şantiyeden art arda rapor giriyorsa bunları koru
     sahaInput.value = saha;
@@ -4362,9 +4483,9 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     statusEl.className = 'status';
   });
 
-  $('tarih').value = localToday();
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) $('tarih').value = localToday(); });
-  setInterval(function () { $('tarih').value = localToday(); }, 60000);
+  $('tarih').value = drDate || localToday();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) $('tarih').value = drDate || localToday(); });
+  setInterval(function () { $('tarih').value = drDate || localToday(); }, 60000);
   applyLang();
   renderOutbox();
   loadSahalar();
