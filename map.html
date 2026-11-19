@@ -141,7 +141,7 @@ svg#map{width:100%;height:100%;display:block;user-select:none;-webkit-user-selec
 .rlab rect{fill:#fff;stroke:var(--steel-lt);stroke-width:1;vector-effect:non-scaling-stroke}
 .rlab text{font:600 34px var(--font);fill:var(--graphite);text-anchor:middle;dominant-baseline:central}
 .rlab{pointer-events:none}
-.dmark{font:500 20px var(--font);fill:var(--steel);pointer-events:none}
+.dmark{font:600 20px var(--font);fill:var(--graphite);pointer-events:none;stroke:#fff;stroke-width:4px;stroke-linejoin:round;paint-order:stroke}
 .dmark .dnum{font-weight:700;fill:#2D2D40}
 .door{cursor:pointer}
 .door circle{stroke-width:2;vector-effect:non-scaling-stroke}
@@ -370,21 +370,26 @@ function showFloor(i,keepView,keepSel){
   [['light','ly-light'],['med','ly-med'],['door','ly-door'],['dark','ly-dark']].forEach(([k,c])=>{
     if(F.layers[k]) el('path',{d:F.layers[k],class:'ly '+c},vp)});
   const gT=el('g',{},vp);
-  F.doors.forEach(d=>{if(!d.mark||(d.tx==null&&!d.custom))return;const tx=d.tx!=null?d.tx:d.x+42,ty=d.ty!=null?d.ty:d.y+7;const t=el('text',{x:tx,y:ty,class:'dmark',transform:d.rot?`rotate(${-d.rot} ${tx} ${ty})`:''},gT);t.textContent=d.mark;if(d.n){const q=el('tspan',{class:'dnum',dx:8},t);q.textContent='№'+d.n}});
+  F.doors.forEach(d=>{if(!d.mark||(d.tx==null&&!d.custom))return;const tx=d.tx!=null?d.tx:d.x+42,ty=d.ty!=null?d.ty:d.y+7;const t=el('text',{x:tx,y:ty,class:'dmark',transform:d.rot?`rotate(${-d.rot} ${tx} ${ty})`:''},gT);t.dataset.cx=tx;t.dataset.cy=ty;t.textContent=d.mark;if(d.n){const q=el('tspan',{class:'dnum',dx:8},t);q.textContent='№'+d.n}});
   const gL=el('g',{},vp);
   F.rooms.forEach(r=>{const g=el('g',{class:'rlab'},gL);const w=Math.max(90,r.id.length*21+28);
-    el('rect',{x:r.x-w/2,y:r.y-24,width:w,height:48,rx:24},g);const t=el('text',{x:r.x,y:r.y},g);t.textContent=r.id});
+    el('rect',{x:r.x-w/2,y:r.y-24,width:w,height:48,rx:24},g);const t=el('text',{x:r.x,y:r.y},g);t.textContent=r.id;g.dataset.cx=r.x;g.dataset.cy=r.y});
   const gD=el('g',{},vp);
-  F.doors.forEach(d=>{const g=el('g',{class:'door'},gD);g.dataset.door=d.id;
+  F.doors.forEach(d=>{const g=el('g',{class:'door'},gD);g.dataset.door=d.id;g.dataset.cx=d.x;g.dataset.cy=d.y;
     el('circle',{cx:d.x,cy:d.y,r:34},g);
     el('path',{d:`M${d.x-14} ${d.y+1}l9 10l19-21`,class:'ok'},g);
     el('path',{d:`M${d.x-13} ${d.y-13}l26 26M${d.x+13} ${d.y-13}l-26 26`,class:'x'},g);
     el('path',{d:`M${d.x-20} ${d.y}h40`,class:'gone'},g);
     const bg=el('g',{class:'dbadge'},g);el('circle',{cx:d.x+30,cy:d.y-30,r:18},bg);el('text',{x:d.x+30,y:d.y-29},bg);
     doorEls[d.id]=g;});
+  vp.appendChild(gT);   // марки поверх кружков
   refreshDoors(); stats(); renderCard();
-  if(!keepView){lastW=box.clientWidth;fit();}
+  if(!keepView){lastW=box.clientWidth;fit();}else scaleMarks();
 }
+let lastSc='';
+function scaleMarks(){const k=view.k;const fd=Math.min(1,15/(34*k)),ft=12/(20*k),fr=Math.min(1.6,13/(34*k));const key=fd.toFixed(3)+ft.toFixed(3)+fr.toFixed(3)+F.id;if(key===lastSc)return;lastSc=key;
+  const S=(e,f)=>{const x=+e.dataset.cx,y=+e.dataset.cy;if(!('rt' in e.dataset))e.dataset.rt=e.getAttribute('transform')||'';const base=e.dataset.rt;e.setAttribute('transform',Math.abs(f-1)<0.001?base:`translate(${x} ${y}) scale(${f}) translate(${-x} ${-y}) ${base}`)};
+  vp.querySelectorAll('g.door').forEach(e=>S(e,fd));vp.querySelectorAll('text.dmark').forEach(e=>S(e,ft));vp.querySelectorAll('g.rlab').forEach(e=>S(e,fr))}
 function refreshDoors(){const OD=openDefMap();const RQ={};for(const k in DEFS)if(DEFS[k].req)RQ[DEFS[k].door]=1;F.doors.forEach(d=>{const g=doorEls[d.id];const s=st(d.id);const nd=OD[d.id]||0;
   const dim=filter==='def'?!nd:(filter!==null&&filter!==s);
   g.setAttribute('class','door s'+s+(d.custom?' cust':'')+(sel&&sel.t==='d'&&sel.id===d.id?' sel':'')+(dim?' dim':'')+(s<3?IM.doorCls(d.id):''));
@@ -447,7 +452,7 @@ const stage=document.getElementById('stage');let cv=null,commitT=0;
 function apply(){clearTimeout(commitT);cv={...view};const W=box.clientWidth,H=box.clientHeight;
   stage.style.transform='';
   vp.setAttribute('transform',`translate(${view.x+W/2} ${view.y+H/2}) scale(${view.k})`);
-  const z=view.k/minK();svg.classList.toggle('far',z<3.2);svg.classList.toggle('vfar',z<1.6)}
+  const z=view.k/minK();svg.classList.toggle('far',z<2.4);svg.classList.toggle('vfar',z<1.6);scaleMarks()}
 function live(){if(!cv)return apply();const W=box.clientWidth,H=box.clientHeight;const r=view.k/cv.k;
   const tx=view.x+W/2-r*(cv.x+W/2), ty=view.y+H/2-r*(cv.y+H/2);
   stage.style.transform=`translate(${tx}px,${ty}px) scale(${r})`;
