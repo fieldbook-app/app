@@ -659,6 +659,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* строка пользователя, «Сменить», выбор языка — тоже углы как у полей */
   html body #who-bar,html body #who-bar button,html body .lang-dd .ld-cur,html body .topbar .lang-dd .ld-cur{border-radius:6px!important}
 
+  /* stage3j: кнопки блока карты — углы как у полей */
+  html body .mp-adm button{border-radius:6px!important}
+
   /* ===== ICON: фирменный стиль (светлая тема «Стандарт»). Перекрывает старые слои v26–v42. ===== */
   :root{
     --font:'Euclid Circular A','Inter','Segoe UI',system-ui,-apple-system,sans-serif;
@@ -880,6 +883,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="work-list" id="work-list-genel"></div>
       </div>
 
+      <div class="field" id="mp-field" style="display:none"><div class="label">Карта объекта</div></div>
       <div class="field" id="sahmat-field">
         <div class="label" data-i18n="sm_title">Şahmat — Takılan Kapı ve Aksesuarlar</div>
         <div class="sm-mode">
@@ -1859,6 +1863,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     const has = !!sahaInput.value.trim(), sm = has && smActive();
     try { smDescNote(); } catch (e) {}
     $('sahmat-field').classList.toggle('show', sm);
+    try { mpBtn(); } catch (e) {}
     const fieldOf = function (id) { const el = $(id); return el ? el.closest('.field') : null; };
     [fieldOf('tarih'), fieldOf('aciklama'), fieldOf('kisi')].forEach(function (f, i) { if (f) f.style.display = has && (i === 0 || APP_ROLE === 'montajci') ? '' : 'none'; });
     try { $('rp-view').style.display = (has || !!($('saha-main') && $('saha-main').value)) && APP_ROLE !== 'montajci' ? '' : 'none'; } catch (e) {}
@@ -4139,6 +4144,14 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   function mpBtn() {
     const main = mpMain(), has = !!(main && mpMeta()[main]);
+    // где показывать кнопки карты: в поле шахматки, если оно открыто, иначе — в отдельном поле «Карта объекта»
+    try {
+      const smf = $('sahmat-field'), mf = $('mp-field'), inSm = smf.classList.contains('show');
+      const host = inSm ? smf : mf, ob = $('mp-open-btn'), ad = $('mp-adm');
+      if (ob.parentElement !== host) { if (inSm) { smf.insertBefore(ad, $('sm-sum')); smf.insertBefore(ob, ad); } else { mf.appendChild(ob); mf.appendChild(ad); } }
+      mf.style.display = !inSm && main && (mpIsMgr() || has) ? '' : 'none';
+      const lb = mf.querySelector('.label'); if (lb) lb.textContent = L2('Obje haritası', 'Карта объекта');
+    } catch (e) {}
     $('mp-open-btn').style.display = has ? '' : 'none';
     $('mp-open-t').textContent = L2('Haritayı aç', 'Открыть карту');
     $('mp-adm').style.display = (main && mpIsMgr()) ? '' : 'none';
