@@ -865,7 +865,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
         <button type="button" class="sm-open" id="sm-open-btn"><b data-i18n="sm_open">Şahmatı aç</b><span>›</span></button>
         <button type="button" class="sm-open" id="mp-open-btn" style="display:none"><b id="mp-open-t">Haritayı aç</b><span>›</span></button>
-        <div class="mp-adm" id="mp-adm" style="display:none"><button type="button" id="mp-up"></button><input type="file" id="mp-file" accept=".icmap,.json,text/plain" hidden><span id="mp-up-msg"></span></div>
+        <div class="mp-adm" id="mp-adm" style="display:none"><button type="button" id="mp-up"></button><button type="button" id="mp-plan" style="display:none"></button><input type="file" id="mp-file" accept=".icmap,.json,text/plain" hidden><span id="mp-up-msg"></span></div>
         <div class="sm-sum" id="sm-sum"></div>
       </div>
 
@@ -1666,12 +1666,12 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     wb.worksheets.forEach(function (ws) {
       if (ws.name === 'Montaj Kayıt' || ws.name === 'Rapor' || ws.name === 'Revizyonlar' || ws.name === 'Revizyon Detay' || ws.name === 'Sök-Tak' || ws.name === 'Hazır Değil' || ws.name === 'Spek') return;
       const h = smHeaderRow(ws); if (!h) return;
-      const cM = h.cM, cB = h.map['блок'], cK = h.map['этаж'], cSub = h.map['подпроект'] || 0, cIc = h.map[Object.keys(h.map).find(function (k) { return /icon/.test(k); }) || ''] || 0;
+      const cM = h.cM, cB = h.map['блок'], cK = h.map['этаж'], cSrc = h.map['источник'] || 0, cSub = h.map['подпроект'] || 0, cIc = h.map[Object.keys(h.map).find(function (k) { return /icon/.test(k); }) || ''] || 0;
       const rows = [], cancelled = [], cS = h.map['durum'] || null;
       for (let r = h.r + 1; r <= ws.rowCount; r++) {
         const m = smTxt(smVal(ws.getRow(r).getCell(cM)));
         if (!m) continue;
-        const rw = { r: r, mirka: m, blok: smTxt(smVal(ws.getRow(r).getCell(cB))), kat: smVal(ws.getRow(r).getCell(cK)), sub: cSub ? smTxt(smVal(ws.getRow(r).getCell(cSub))) : '', icon: cIc ? (Number(smVal(ws.getRow(r).getCell(cIc))) || 0) : 0 };
+        const rw = { r: r, src: cSrc ? smTxt(smVal(ws.getRow(r).getCell(cSrc))) : '', mirka: m, blok: smTxt(smVal(ws.getRow(r).getCell(cB))), kat: smVal(ws.getRow(r).getCell(cK)), sub: cSub ? smTxt(smVal(ws.getRow(r).getCell(cSub))) : '', icon: cIc ? (Number(smVal(ws.getRow(r).getCell(cIc))) || 0) : 0 };
         if (cS && smIsCancel(smVal(ws.getRow(r).getCell(cS)))) { cancelled.push(rw); continue; }
         rows.push(rw);
       }
@@ -3195,6 +3195,175 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     return cnt;
   }
 
+
+  // ── Шахматка из плана (stage3f) ──
+  const SM_PLAN_ACC = ['Замок', 'Цилиндр', 'Ручка', 'Доводчик'];
+  const SM_PLAN_SHEET = 'Отметки без строки СП';
+  function smIsPlanWb(wb) {
+    const ws = wb.getWorksheet('ICON Şahmat') || wb.worksheets[0]; if (!ws) return false;
+    const c = smHdr(ws)['Источник']; if (!c) return false;
+    let n = 0, p = 0;
+    for (let r = 2; r <= ws.rowCount; r++) { const v = smTxt(smVal(ws.getRow(r).getCell(c))); if (!v) continue; n++; if (/^План!/.test(v)) p++; }
+    return n > 0 && p / n > 0.9;
+  }
+  async function smIsPlanProj(k) {
+    try { const b = localStorage.getItem('sm_wb_' + k); if (!b) return false; const wb = new ExcelJS.Workbook(); await wb.xlsx.load(smUnB64(b)); return smIsPlanWb(wb); } catch (e) { return false; }
+  }
+  function smHasAnyProj(main) { const ix = smIdx(); return Object.keys(ix).some(function (k) { return k === main || k.indexOf(main + '.') === 0; }); }
+  function smPlanBuild(map, proj) {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('ICON Şahmat');
+    ws.addRow(['Проект', 'Блок', 'Этаж', SM_DOOR_H, 'Источник', SM_ROOM].concat(SM_PLAN_ACC));
+    ws.getRow(1).font = { bold: true };
+    [10, 14, 8, 30, 18, 22, 10, 10, 10, 10].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+    let n = 0;
+    map.floors.forEach(function (f) {
+      f.doors.forEach(function (d) {
+        n++;
+        ws.addRow([proj, f.bld || '', f.num == null ? null : f.num, String(d.mark || L2('İşaretsiz', 'Без марки')).slice(0, 80), 'План!' + d.id, (d.rooms || []).join(' / ')].concat(SM_PLAN_ACC.map(function () { return 1; })));
+      });
+    });
+    return { wb: wb, n: n };
+  }
+  async function smPlanCreate(main, quiet) {
+    if (!main || !mpIsMgr() || !smIsAdmin()) return false;
+    if (smHasAnyProj(main)) { if (!quiet) smToast(L2('Bu obje için şahmat zaten var.', 'Шахматка для этого объекта уже есть.')); return false; }
+    let map; try { map = await mpData(main); } catch (e) { smToast(L2('Harita okunamadı: ', 'Не удалось прочитать карту: ') + e.message); return false; }
+    const b = smPlanBuild(map, main);
+    if (!b.n) { smToast(L2('Haritada kapı yok.', 'На карте нет дверей.')); return false; }
+    if (!smActivate(b.wb, main, main + ' ICON Şahmat (по плану).xlsx', L2('Plandan oluşturuldu: ', 'Создано по плану: ') + b.n + ' ' + L2('kapı', 'дверей'))) return false;
+    await smPersist();
+    smPushBase(main, false);
+    renderSahaOptions(); sahaInput.value = main; applySahaSelection(); try { mpBtn(); } catch (e) {}
+    smToast(L2('Şahmat plandan oluşturuldu: ', 'Шахматка создана по плану: ') + b.n + ' ' + L2('kapı', 'дверей'));
+    return true;
+  }
+  function smPlanAccMap(nh) {
+    const heads = Object.keys(nh).filter(smIsAccHead), m = {};
+    SM_PLAN_ACC.forEach(function (a) {
+      if (nh[a]) { m[a] = a; return; }
+      const lo = a.toLowerCase(), c = heads.filter(function (h) { return h.toLowerCase().indexOf(lo) === 0; });
+      m[a] = c.find(function (h) { return /актив/i.test(h); }) || c[0] || '';
+    });
+    return m;
+  }
+  function smPlanRowDesc(ws, r, h) {
+    const g = function (name) { return h[name] ? smTxt(smVal(ws.getRow(r).getCell(h[name]))) : ''; };
+    return [g('Блок'), g('Этаж') !== '' ? L2('kat ', 'эт. ') + g('Этаж') : '', g(SM_DOOR_H), g(SM_ROOM)].filter(Boolean).join(' · ');
+  }
+  function smPlanMarks(ws, r, h) {
+    const out = [];
+    Object.keys(h).forEach(function (name) {
+      if (SM_BASE.indexOf(name) >= 0 && name !== SM_DOOR_H) return;
+      const c = ws.getRow(r).getCell(h[name]), raw = smVal(c), v = raw instanceof Date ? ('0' + raw.getUTCDate()).slice(-2) + '.' + ('0' + (raw.getUTCMonth() + 1)).slice(-2) + '.' + raw.getUTCFullYear() : smTxt(raw);
+      if (name === SM_DOOR_H) { if (smInstFill(c.fill)) out.push(L2('kapı', 'дверь')); return; }
+      if (name.endsWith(SM_DATE_SUFFIX) && v) { out.push(name.slice(0, -SM_DATE_SUFFIX.length).replace(/^Kapı$/, L2('kapı', 'дверь')) + ' ' + v); return; }
+      if (name === SM_LABEL_HEAD || name.endsWith(SM_DATE_SUFFIX) || name.endsWith(SM_TES_SUFFIX) || name.endsWith(SM_QTY_SUFFIX) || name.endsWith(SM_TQTY_SUFFIX) || name === SM_SOK || name === SM_HAZ || name === SM_HAZ_WHY) { if (v) out.push(name + ': ' + v); return; }
+      if (smIsAccHead(name) && smInstFill(c.fill)) out.push(name);
+    });
+    return out;
+  }
+  function smPlanAsk(R) {
+    return new Promise(function (res) {
+      const li = function (a) { return a.slice(0, 40).map(escapeHtml).join('<br>') + (a.length > 40 ? '<br>…' : ''); };
+      const sec = function (title, body, red) { return '<div style="margin-top:10px' + (red ? ';color:#B42318' : '') + '"><b class="rv-t">' + title + '</b><br>' + body + '</div>'; };
+      let h = '<div><b>' + L2('Planla eşleşen', 'Совпало с планом') + ': ' + R.matched + '</b> · ' + L2('işaretli', 'с отметками') + ': ' + R.matchedMarked + ' — ' + L2('tek tuşla taşınacak', 'перенесутся одной кнопкой') + '</div>';
+      h += sec(L2('Aksesuarlar', 'Комплектующие'), SM_PLAN_ACC.map(function (a) { return escapeHtml(a) + ' → ' + (R.acc[a] ? '«' + escapeHtml(R.acc[a]) + '»' : '<span style="color:#B42318">' + L2('listede yok — işaretler taşınmaz', 'в СП нет — отметки не перенесутся') + '</span>'); }).join('<br>'));
+      if (R.accWarn.length) h += sec('⚠ ' + L2('Planda işaretli, listede bu kapıda yok', 'Отмечено по плану, но в СП у этой двери нет') + ' (' + R.accWarn.length + ')', li(R.accWarn), true);
+      if (R.oldMarked.length) {
+        h += sec('⚠ ' + L2('İşaretli ama listede bulunamadı — elle bağlayın', 'Отмечено, но не найдено в СП — привяжите вручную') + ' (' + R.oldMarked.length + ')',
+          '<div style="font-weight:400;color:#556A7B;margin:2px 0 6px">' + L2('Bağlanmayanlar ayrı sayfaya gider: ', 'Что не привяжете — уйдёт в лист «') + SM_PLAN_SHEET + L2('', '» и останется на карте отмеченным.') + '</div>' +
+          R.oldMarked.map(function (x, i) {
+            const opts = '<option value="">' + escapeHtml(L2('— ayrı sayfaya —', '— в лист разбора —')) + '</option>' + x.cand.map(function (c) { return '<option value="' + c.r + '">' + escapeHtml(c.t) + '</option>'; }).join('');
+            return '<div style="margin:6px 0;padding:6px 8px;border:1px solid #F3C27A;border-radius:8px;background:#FFF8EE;color:#2D2D40;font-weight:400"><b>' + escapeHtml(x.t) + '</b><br><span style="font-size:12px;color:#7A4A00">' + escapeHtml(x.marks.join(', ')) + '</span><br>' +
+              '<select data-pm="' + i + '" style="margin-top:4px;width:100%;padding:6px;border-radius:8px;border:1px solid #C5CED8">' + opts + '</select></div>';
+          }).join(''), true);
+      }
+      if (R.newOnly.length) h += sec(L2('Listede var, planda yok', 'Есть в СП, нет на плане') + ' (' + R.newOnly.length + ')', li(R.newOnly));
+      if (R.oldPlain.length) h += sec(L2('Planda var, listede yok (işaretsiz)', 'Есть на плане, нет в СП (без отметок)') + ' (' + R.oldPlain.length + ')', li(R.oldPlain));
+      h += '<div id="pm-msg" style="margin-top:10px;color:#B42318;font-weight:600"></div>';
+      $('rv-title').textContent = L2('Plan şahmatı ile karşılaştırma', 'Сверка со шахматкой по плану'); $('rv-body').innerHTML = h;
+      $('rv-ok').textContent = L2('İşaretleri taşı ve kaydet', 'Перенести отметки и сохранить'); $('rv-cancel').textContent = L2('Vazgeç', 'Отмена');
+      const done = function (v) { $('rv-modal').classList.remove('open'); $('rv-ok').onclick = null; $('rv-cancel').onclick = null; res(v); };
+      $('rv-ok').onclick = function () {
+        const man = {}, seen = {}; let dup = '';
+        $('rv-body').querySelectorAll('select[data-pm]').forEach(function (sel) { const v = sel.value; if (!v) return; if (seen[v]) dup = sel.options[sel.selectedIndex].text; seen[v] = 1; man[R.oldMarked[Number(sel.dataset.pm)].or] = Number(v); });
+        if (dup) { $('pm-msg').textContent = L2('Aynı satır iki kez seçildi: ', 'Одна строка СП выбрана дважды: ') + dup; return; }
+        done(man);
+      };
+      $('rv-cancel').onclick = function () { done(null); };
+      $('rv-modal').classList.add('open');
+    });
+  }
+  async function smPlanMerge(ow, nw, proj) {
+    const main = String(proj || '').split('.')[0];
+    let map; try { map = await mpData(main); } catch (e) { throw new Error(L2('harita okunamadı', 'не удалось прочитать карту') + ': ' + e.message); }
+    const o = ow.getWorksheet('ICON Şahmat') || ow.worksheets[0], n = nw.worksheets[0];
+    const oh = smHdr(o); let nh = smHdr(n);
+    const prow = {}, pid = {};
+    for (let r = 2; r <= o.rowCount; r++) { const v = smTxt(smVal(o.getRow(r).getCell(oh['Источник']))); if (/^План!/.test(v)) { prow[v.slice(5)] = r; pid[r] = v.slice(5); } }
+    const nS = smParse(nw), L = mpLink(map, nS), pairs = {}, pairedOld = {}, pairedNew = {};
+    Object.keys(L.door).forEach(function (id) { const x = L.door[id], or = prow[id]; if (!or || x.si !== 0) return; pairs[x.row.r] = or; pairedOld[or] = 1; pairedNew[x.row.r] = 1; });
+    const acc = smPlanAccMap(nh), R = { matched: 0, matchedMarked: 0, acc: acc, accWarn: [], oldMarked: [], oldPlain: [], newOnly: [] };
+    const nrows = nS.length ? nS[0].rows : [];
+    nrows.forEach(function (row) { if (!pairedNew[row.r]) R.newOnly.push(smPlanRowDesc(n, row.r, nh)); });
+    Object.keys(pairs).forEach(function (nr) {
+      const or = pairs[nr]; R.matched++;
+      if (smRowMarked(o, or, oh)) R.matchedMarked++;
+      SM_PLAN_ACC.forEach(function (a) {
+        if (!oh[a] || !smInstFill(o.getRow(or).getCell(oh[a]).fill)) return;
+        const t = acc[a], v = t && nh[t] ? smAccNum(n, Number(nr), nh[t]) : 0;
+        if (!v) R.accWarn.push(smPlanRowDesc(o, or, oh) + ' — ' + a);
+      });
+    });
+    const freeNew = nrows.filter(function (row) { return !pairedNew[row.r]; });
+    Object.keys(pid).forEach(function (r) {
+      r = Number(r); if (pairedOld[r]) return;
+      if (smRowMarked(o, r, oh)) {
+        const b = smTxt(smVal(o.getRow(r).getCell(oh['Блок']))), mk = mpNormMark(smTxt(smVal(o.getRow(r).getCell(oh[SM_DOOR_H]))));
+        const cand = freeNew.map(function (row) { return { r: row.r, sc: (mpNormBld(row.blok) === mpNormBld(b) ? 2 : 0) + (mpNormMark(row.mirka) === mk ? 4 : 0), t: smPlanRowDesc(n, row.r, nh) }; })
+          .sort(function (a, c) { return c.sc - a.sc || a.r - c.r; }).slice(0, 60);
+        R.oldMarked.push({ or: r, t: smPlanRowDesc(o, r, oh), marks: smPlanMarks(o, r, oh), cand: cand });
+      } else R.oldPlain.push(smPlanRowDesc(o, r, oh));
+    });
+    const man = await smPlanAsk(R);
+    if (!man) return null;
+    Object.keys(man).forEach(function (or) { pairs[man[or]] = Number(or); pairedOld[or] = 1; if (nh['Источник'] && pid[or]) n.getRow(man[or]).getCell(nh['Источник']).value = 'План!' + pid[or]; });
+    // переименовать столбцы комплектующих плана в имена из СП, чтобы перенос шёл по совпадению заголовков
+    const sufs = [SM_TQTY_SUFFIX, SM_TES_SUFFIX, SM_QTY_SUFFIX, SM_DATE_SUFFIX];
+    o.getRow(1).eachCell({ includeEmpty: false }, function (c) {
+      const x = smTxt(smVal(c)); let base = x, suf = '';
+      sufs.some(function (sx) { if (x.endsWith(sx)) { base = x.slice(0, -sx.length); suf = sx; return true; } return false; });
+      if (SM_PLAN_ACC.indexOf(base) >= 0) c.value = acc[base] ? acc[base] + suf : '§' + x;
+    });
+    const kept = smCarry(ow, nw, pairs);
+    // что осталось отмеченным без строки СП — в конец шахматки (на карте остаётся отмеченным) и в лист разбора
+    nh = smHdr(n); const oh2 = smHdr(o);
+    let last = 0; Object.keys(nh).forEach(function (hh) { last = Math.max(last, nh[hh]); });
+    const addCol = function (name, w) { if (nh[name]) return nh[name]; const c = ++last, hc = n.getRow(1).getCell(c); hc.value = name; hc.style = smClone(n.getRow(1).getCell(1).style); n.getColumn(c).width = w; nh[name] = c; return c; };
+    const left = Object.keys(pid).map(Number).filter(function (r) { return !pairedOld[r] && smRowMarked(o, r, oh2); });
+    if (left.length) {
+      const rc = addCol(SM_REV, 26);
+      const note = smRevDate() + ': ' + L2('listede yok — plan şahmatından taşındı, kontrol edin', 'нет в СП — перенесено из шахматки по плану, разобрать');
+      const rs = nw.getWorksheet(SM_PLAN_SHEET) || nw.addWorksheet(SM_PLAN_SHEET);
+      rs.addRow([L2('Blok', 'Блок'), L2('Kat', 'Этаж'), L2('Kapı', 'Марка'), L2('Oda', 'Помещения'), L2('Harita kapı ID', 'ID двери карты'), L2('İşaretler', 'Что отмечено')]);
+      rs.getRow(1).font = { bold: true }; [12, 8, 26, 24, 16, 70].forEach(function (w, i) { rs.getColumn(i + 1).width = w; });
+      left.forEach(function (or) {
+        const r = n.rowCount + 1;
+        Object.keys(oh2).forEach(function (hh) {
+          if (!nh[hh] || hh === SM_REV || hh === SM_STATUS || hh === 'ICON №') return;
+          const oc = o.getRow(or).getCell(oh2[hh]), nc = n.getRow(r).getCell(nh[hh]);
+          const v = smVal(oc); if (v !== null && v !== undefined && v !== '') nc.value = v;
+          if (oc.style) nc.style = smClone(oc.style);
+        });
+        if (nh['Проект']) n.getRow(r).getCell(nh['Проект']).value = proj;
+        n.getRow(r).getCell(rc).value = note;
+        const g = function (name) { return oh2[name] ? smVal(o.getRow(or).getCell(oh2[name])) : ''; };
+        rs.addRow([g('Блок'), g('Этаж'), g(SM_DOOR_H), g(SM_ROOM), pid[or], smPlanMarks(o, or, oh2).join('; ')]);
+      });
+    }
+    return { kept: kept, left: left.length, matched: R.matched };
+  }
+
   // ── Liste değişince: kapı numarasıyla karşılaştırma (liste yolu) ──
   const SM_BASE = ['Проект', 'Блок', 'Этаж', SM_DOOR_H, 'ICON №', 'Источник', SM_ROOM, SM_STATUS];
   function smHdr(ws) { const h = {}; ws.getRow(1).eachCell({ includeEmpty: false }, function (c, col) { const x = smNormH(smTxt(smVal(c))); if (x) h[x] = col; }); return h; }
@@ -3353,7 +3522,12 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
           const ob = localStorage.getItem('sm_wb_' + proj);
           if (ob) {
             const ow = new ExcelJS.Workbook(); await ow.xlsx.load(smUnB64(ob));
-            if (m.path === 'list') {
+            if (smIsPlanWb(ow)) {
+              const pr = await smPlanMerge(ow, use, proj);
+              if (!pr) { smToast(L2('Vazgeçildi, hiçbir şey değişmedi.', 'Отменено, ничего не изменилось.')); return false; }
+              note += ' · ' + L2('plandan taşınan işaret', 'перенесено отметок с плана') + ': ' + pr.kept + (pr.left ? ' · ' + L2('ayrı sayfada', 'в листе разбора') + ': ' + pr.left : '');
+              smCopySheet(ow, use, 'Montaj Kayıt'); smCopySheet(ow, use, 'Spek');
+            } else if (m.path === 'list') {
               const rp = smListDiff(ow, use), chg = smRpChanged(rp), revNo = smRevNo(ow) + (chg ? 1 : 0);
               if (!(await rvAsk(rp, chg ? revNo : 0))) { smToast(L2('Vazgeçildi, hiçbir şey değişmedi.', 'Отменено, ничего не изменилось.')); return false; }
               const kept = smListApply(ow, use, rp, { rev: chg ? revNo : 0 }); note += ' · ' + L2('korunan işaret', 'сохранено отметок') + ': ' + kept;
@@ -3361,7 +3535,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
               if (chg) { smRevLog(use, revNo, fname, rp, (typeof reporter !== 'undefined' ? reporter : '')); note += ' · Rev ' + revNo; }
             } else { const kept = smCarry(ow, use); note += ' · ' + L2('korunan işaret', 'сохранено отметок') + ': ' + kept; smCopySheet(ow, use, 'Montaj Kayıt'); smCopySheet(ow, use, 'Spek'); }
           }
-        } catch (e) { smToast(L2('Eski işaretler taşınamadı: ', 'Не удалось перенести отметки: ') + e.message); }
+        } catch (e) { smToast(L2('Eski işaretler taşınamadı: ', 'Не удалось перенести отметки: ') + e.message); if (/harita|карт/i.test(e.message)) return false; }
       }
     }
     if (!sel && proj.indexOf('.') < 0) { try { const ws0 = use.worksheets.find(function (w) { return smHeaderRow(w); }); const hh = ws0 && smHeaderRow(ws0); if (hh && !hh.map['подпроект']) { const sc = await smSubColAsk(use, use, proj); if (sc === null) return false; smFillSub(use, use, sc); } } catch (e) {} }
@@ -3383,6 +3557,11 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     const selMain = $('saha-main').value;
     if (!selMain) { const m = L2('Önce şantiyeyi seçin.', 'Сначала выберите объект.'); $('sm-file-name').textContent = m; smToast(m); return; }
     const mt = /^\s*(\d+(?:\.\d+)?)(?![0-9])/.exec(f.name);
+    if (smProjKeyExact(selMain) && await smIsPlanProj(selMain)) {
+      smToast(L2('Bu objede plandan şahmat var: liste onunla karşılaştırılıp işaretler taşınacak.', 'У объекта шахматка по плану: новая СП будет сверена с ней, отметки перенесутся.'));
+      try { await smAddFlow(await f.arrayBuffer(), f.name, selMain, null, true); } catch (err) { $('sm-file-name').textContent = 'Hata: ' + err.message; }
+      return;
+    }
     const proj = await smScopeAsk(selMain, mt && mt[1].split('.')[0] === selMain ? mt[1] : '');
     if (!proj) return;
     if (smProjKeyExact(proj)) {
@@ -3417,7 +3596,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   $('sm-file-edit').addEventListener('change', async function () {
     const f = this.files[0]; if (!f || !pjEditKey) return;
-    if (!smNameOk(f.name, pjEditKey)) { smToast(L2('Dosya adı "{0}" ile başlamıyor.', 'Имя файла не начинается с «{0}».').replace('{0}', pjEditKey)); return; }
+    if (!smNameOk(f.name, pjEditKey) && !(await smIsPlanProj(pjEditKey))) { smToast(L2('Dosya adı "{0}" ile başlamıyor.', 'Имя файла не начинается с «{0}».').replace('{0}', pjEditKey)); return; }
     let pre = null; try { pre = JSON.parse(localStorage.getItem('sm_sel_' + pjEditKey) || 'null'); } catch (e) {}
     try { await smAddFlow(await f.arrayBuffer(), f.name, pjEditKey, pre, true); } catch (err) { smToast('Hata: ' + err.message); }
   });
@@ -3921,7 +4100,9 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     $('mp-open-t').textContent = L2('Haritayı aç', 'Открыть карту');
     $('mp-adm').style.display = (main && mpIsMgr()) ? '' : 'none';
     $('mp-up').textContent = has ? L2('Haritayı güncelle', 'Обновить карту объекта') + ' ' + main : L2('Harita yükle', 'Загрузить карту объекта') + ' ' + main;
+    const pb = $('mp-plan'); if (pb) { pb.style.display = (has && main && mpIsMgr() && smIsAdmin() && !smHasAnyProj(main)) ? '' : 'none'; pb.textContent = L2('Plandan şahmat oluştur', 'Создать шахматку из плана') + ' ' + main; }
   }
+  if ($('mp-plan')) $('mp-plan').addEventListener('click', async function () { this.disabled = true; try { await smPlanCreate(mpMain(), false); } finally { this.disabled = false; mpBtn(); } });
   ['saha-main', 'saha-sub'].forEach(function (id) { const e = $(id); if (e) e.addEventListener('change', function () { setTimeout(mpBtn, 0); }); });
   async function mpDecode(text) {
     text = String(text || '').trim();
@@ -3943,6 +4124,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       if (!j || !j.ok) throw new Error(j && j.error || 'error');
       await MPDB.put('map_' + main, { ver: j.ver, data: o }); const m = mpMeta(); m[main] = j.ver; localStorage.setItem('mp_meta', JSON.stringify(m));
       msg.textContent = L2('Harita yüklendi (sürüm ', 'Карта загружена (версия ') + j.ver + ').'; mpBtn();
+      if (!smHasAnyProj(main) && await smPlanCreate(main, true)) msg.textContent += ' ' + L2('Şahmat yok — plandan oluşturuldu.', 'Шахматки не было — создана по плану.');
     } catch (e) { msg.textContent = L2('Hata: ', 'Ошибка: ') + (e.message === 'bad map' ? L2('bu bir harita dosyası değil', 'это не файл карты') : e.message); }
   });
   async function mpData(main) {
@@ -3958,15 +4140,17 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   function mpNormBld(s) { return String(s || '').trim().toUpperCase().replace(/\d+$/, '').replace(/[ЁE]/g, 'Е'); }
   function mpRooms(s) { return String(s || '').toUpperCase().replace(/A/g, 'А').replace(/,(?=\d)/g, '.').split(/[\s,;\n]+|\bВ\b/).map(function (x) { return x.replace(/^П\.?/, 'П.').replace(/[^0-9А-ЯП.]/g, ''); }).filter(Boolean); }
   function mpFloorNum(v) { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.').replace('−', '-')); return isFinite(n) ? Math.round(n) : null; }
-  function mpLink(map) {
-    const L = { door: {}, rows: 0, sheets: smSheets }; if (!smSheets.length) return L;
+  function mpLink(map, shs) {
+    shs = shs || smSheets;
+    const L = { door: {}, rows: 0, sheets: shs }; if (!shs.length) return L;
+    const ids = {}; map.floors.forEach(function (f) { f.doors.forEach(function (d) { ids[d.id] = 1; }); });
     const doors = {}; map.floors.forEach(function (f) { f.doors.forEach(function (d) { if (!d.mark) return; const k = mpNormBld(f.bld) + '|' + mpNormMark(d.mark); (doors[k] = doors[k] || []).push({ d: d, f: f, num: f.num, rooms: (d.rooms || []).map(function (x) { return mpRooms(x)[0] || x; }) }); }); });
     const used = {}, byN = {};
     map.floors.forEach(function (f) { f.doors.forEach(function (d) { if (d.n) byN[d.n] = d; }); });
-    smSheets.forEach(function (sh, si) {
+    shs.forEach(function (sh, si) {
       const all = sh.allRows || sh.rows, mine = {}; sh.rows.forEach(function (r) { mine[r.r] = 1; });
       const groups = {};
-      all.forEach(function (row) { const dn = row.icon && byN[row.icon]; if (dn && !used[dn.id]) { used[dn.id] = 1; L.door[dn.id] = { si: si, row: row, mine: !!mine[row.r] }; L.rows++; return; } const k = mpNormBld(row.blok) + '|' + mpNormMark(row.mirka); (groups[k] = groups[k] || []).push(row); L.rows++; });
+      all.forEach(function (row) { if (row.src && row.src.indexOf('План!') === 0) { const pid = row.src.slice(5); if (ids[pid] && !used[pid]) { used[pid] = 1; L.door[pid] = { si: si, row: row, mine: !!mine[row.r] }; L.rows++; } return; } const dn = row.icon && byN[row.icon]; if (dn && !used[dn.id]) { used[dn.id] = 1; L.door[dn.id] = { si: si, row: row, mine: !!mine[row.r] }; L.rows++; return; } const k = mpNormBld(row.blok) + '|' + mpNormMark(row.mirka); (groups[k] = groups[k] || []).push(row); L.rows++; });
       Object.keys(groups).forEach(function (k) {
         const cand = (doors[k] || []).filter(function (x) { return !used[x.d.id]; }); if (!cand.length) return;
         const rows = groups[k], pairs = [];
@@ -4259,7 +4443,9 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     drObjs().forEach(function (o, i) {
       Object.keys(o || {}).forEach(function (k) {
         const p = k.split('|'), sh = smSheets[+p[0]];
-        if (sh && o[k] !== undefined && o[k] !== null && o[k] !== false) out.push([i, sh.name, p[1], p[2], o[k]]);
+        if (!(sh && o[k] !== undefined && o[k] !== null && o[k] !== false)) return;
+        const row = sh.rows.find(function (x) { return x.r === Number(p[1]); }), it = sh.items.find(function (x) { return x.col === Number(p[2]); });
+        out.push([i, sh.name, p[1], p[2], o[k]].concat(row && it ? [row.blok, row.mirka, smOcc(sh, row), it.door ? '#door' : it.name] : []));
       });
     });
     return out;
@@ -4316,6 +4502,10 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     let n = 0;
     list.forEach(function (x) {
       const si = smSheets.findIndex(function (sh) { return sh.name === x[1]; }); if (si < 0) return;
+      if (x.length > 5) {   // новая запись: ищем строку по подписи
+        const e = smEvX({ sh: x[1], b: x[5], m: x[6], o: x[7], p: x[8] }); if (!e) return;
+        objs[x[0]][smKey(e.si, e.row.r, e.it.col)] = x[4]; n++; return;
+      }
       objs[x[0]][si + '|' + x[2] + '|' + x[3]] = x[4]; n++;
     });
     drSetObjs(objs);
