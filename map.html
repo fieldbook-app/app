@@ -204,6 +204,18 @@ aside{width:360px;flex:none;border-left:1px solid var(--line-soft);background:va
 h2{font-size:18px;font-weight:600;color:var(--graphite);margin:0 0 4px}
 .sub{color:var(--steel);font-size:13px}
 .chk{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.op{margin-top:12px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:10px;background:#FAFBFD}
+.op-t{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--eyebrow);margin-bottom:6px}
+.op-f{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.op-f label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--steel);flex:1;min-width:84px}
+.op-f input{font:inherit;font-size:15px;font-weight:600;color:var(--graphite);padding:7px 10px;border:1px solid var(--field);border-radius:8px;width:100%;box-sizing:border-box;background:#fff}
+.op-f input:focus{outline:2px solid var(--blue);outline-offset:0;border-color:var(--blue)}
+.op-b{padding:8px 14px;border-radius:var(--r-pill);border:0;background:var(--graphite);color:#fff;font-weight:700;cursor:pointer}
+.op-b:disabled{opacity:.35;cursor:default}
+.op-msg{font-size:12px;margin-top:6px;color:#B42318;min-height:0}
+.op-msg.ok{color:#1E6B3A}
+.op-who{font-size:12px;color:var(--steel);margin-top:6px}
+.op-hl{font-size:12px;color:var(--steel);margin-top:6px;border-top:1px dashed var(--line-soft);padding-top:6px;line-height:1.6}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--line-soft);border-radius:10px}
 .row.main{border-color:var(--field)}
 .yn{display:flex;border:1px solid var(--line);border-radius:var(--r-pill);overflow:hidden;flex:none}
@@ -428,11 +440,12 @@ function renderCard(){
     c.innerHTML=`<div class="eyebrow">Дверь · ${esc(fl(F))}</div><h2>${esc(nm(d))}${d.custom?'<span class="tag">добавлена на объекте</span>':''}</h2>${d.type?`<div class="sub">Тип: ${esc(d.type)}</div>`:''}
       <div class="sub">Помещение: ${d.rooms.map(r=>`<button class="linkbtn" data-r="${esc(r)}">${esc(r)}</button>`).join(', ')||'—'}</div>
       ${d.custom?customHTML(d):''}
+      ${m.gone?'':opHTML(d,m)}
       <div class="seg" role="group" aria-label="Учёт двери"><button data-mode="work"${mode==='work'?' class="on"':''}>В учёте</button><button data-mode="ext"${mode==='ext'?' class="on"':''}>Не наша</button><button data-mode="gone"${mode==='gone'?' class="on"':''}>Убрана по проекту</button></div>
       <div class="chk">
       ${m.gone?'<div class="note">Проём убран по изменению проекта. Дверь исключена из сводки и ведомости комплектов.</div>':m.ext?'<div class="note">Дверь исключена из сводки и ведомости комплектов.</div>':
         '<div id="smhost"></div>'}</div>${defsHTML(d)}`;
-    bindDefs(c,d);{const h=c.querySelector('#smhost');if(h)IM.mountRow(h,d.id)}
+    bindDefs(c,d);bindOp(c,d);{const h=c.querySelector('#smhost');if(h)IM.mountRow(h,d.id)}
     c.querySelectorAll('.yn button').forEach(b=>b.onclick=()=>{const mm=marks[d.id]||(marks[d.id]={});mm[b.dataset.k]=b.dataset.v==='1';mm.t=Date.now();mm.who=me();queue(d.id);
       if(!['inst','ext'].includes(b.dataset.k)&&mm[b.dataset.k])mm.inst=true;
       save();refreshDoors();stats();renderCard();});
@@ -440,6 +453,21 @@ function renderCard(){
     c.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{const mm=marks[d.id]||(marks[d.id]={});const v=b.dataset.mode;mm.ext=v==='ext';mm.gone=v==='gone';mm.t=Date.now();mm.who=me();queue(d.id);save();refreshDoors();stats();renderCard()});
     if(d.custom)bindCustom(c,d);
   }
+}
+function opHTML(d,m){const o=m.op||{};const dt=t=>new Date(t).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const hist=o.hist||[];const who=o.t&&(o.w||o.h)?`<div class="op-who">Замер: ${esc(o.who||'')}, ${dt(o.t)}${hist.length>1?` · <button class="linkbtn" id="opHist">история (${hist.length})</button>`:''}</div>`:'';
+  return `<div class="op"><div class="op-t">Проём (замер), мм</div><div class="op-f"><label>Ширина<input id="opW" type="number" inputmode="numeric" min="100" max="9000" step="1" value="${o.w||''}" placeholder="—"></label><label>Высота<input id="opH" type="number" inputmode="numeric" min="100" max="9000" step="1" value="${o.h||''}" placeholder="—"></label><button type="button" id="opSave" class="op-b" disabled>Сохранить</button></div><div class="op-msg" id="opMsg"></div>${who}<div class="op-hl" id="opHL" hidden>${hist.slice().reverse().map(x=>`${dt(x.t)} · ${esc(x.who||'')}: ${x.w||'—'} × ${x.h||'—'}`).join('<br>')}</div></div>`}
+function bindOp(c,d){const W=c.querySelector('#opW'),H=c.querySelector('#opH'),B=c.querySelector('#opSave'),M=c.querySelector('#opMsg');if(!W)return;
+  const o=(marks[d.id]||{}).op||{};const val=e=>{const v=String(e.value).trim();return v===''?null:Math.round(Number(v))};
+  const chg=()=>{M.textContent='';M.className='op-msg';B.disabled=(val(W)===(o.w||null)&&val(H)===(o.h||null))};
+  W.oninput=H.oninput=chg;[W,H].forEach(e=>e.onkeydown=ev=>{if(ev.key==='Enter'){ev.preventDefault();if(!B.disabled)B.click()}});
+  const hb=c.querySelector('#opHist');if(hb)hb.onclick=()=>{const h=c.querySelector('#opHL');h.hidden=!h.hidden};
+  B.onclick=()=>{const w=val(W),h=val(H);
+    for(const [v,n] of [[w,'ширину'],[h,'высоту']])if(v!==null&&!(v>=100&&v<=9000)){M.textContent='Проверьте '+n+': от 100 до 9000 мм.';return}
+    const mm=marks[d.id]||(marks[d.id]={});const t=Date.now(),who=me();
+    const hist=((mm.op&&mm.op.hist)||[]).concat([{w,h,who,t}]).slice(-10);
+    mm.op={w,h,who,t,hist};mm.t=t;mm.who=who;queue(d.id);save();renderCard();
+    const m2=document.getElementById('opMsg');if(m2){m2.textContent='Сохранено';m2.className='op-msg ok'}};
 }
 function select(t,id,center){if(!sel||sel.id!==id){compose=null;editDef=null;askDel=null;askDelDoor=false}sel={t,id};refreshDoors();renderCard();
   if(center){let x,y;if(t==='d'){const d=F.doors.find(q=>q.id===id);x=d.x;y=d.y}else{const r=F.rooms.find(q=>q.id===id);x=r.x;y=r.y}

@@ -616,6 +616,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   .sm-table td.c small.rv{display:block;color:#c00!important;background:#fff;border-radius:3px;padding:0 3px;font-weight:700;font-size:10.5px;line-height:1.2;margin-top:2px}
   #rv-body .rv-t{color:#c00}
   .sm-table td.c.part,.sm-table td.c.tpart{background:repeating-linear-gradient(45deg,#f1f3f5,#f1f3f5 6px,#d5dae0 6px,#d5dae0 12px)!important;color:#000!important}
+  .sm-table td.op,.sm-table th.op{font-size:12px;background:#f4f6f9;color:#2D2D40;text-align:center;min-width:54px;white-space:nowrap}
+  .sm-table th.op{font-weight:700}
   .sm-table td.room,.sm-table th.room{font-size:12px;background:#f4f6f9;color:#000!important;text-align:center;min-width:60px}
   .mp-grid td.mp-i{background:#e7e0f3!important}.mp-role-i{background:#6c4f9b!important;color:#fff!important}
   .mp-grid td.mp-r{background:#dbe7ff!important}.mp-role-r{background:#4a5560!important;color:#fff!important}
@@ -1911,16 +1913,19 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   async function smExportView(k) {
     const sheets = await smProjSheets(k), v = smViewGet(k) || {}, hide = v.hide || [];
+    const OPD = await opRowDims(k, sheets, true);
     const out = new ExcelJS.Workbook();
-    sheets.forEach(function (sh) {
+    sheets.forEach(function (sh, si) {
       const ws = out.addWorksheet(String(sh.name).slice(0, 31));
       const its = sh.items.filter(function (it) { return it.door || hide.indexOf(it.name) < 0; });
       const showRoom = !!sh.roomCol && !v.hideRoom;
       const head = [L2('Blok', 'Блок')].concat(v.hideKat ? [] : [L2('Kat', 'Этаж')]).concat(showRoom ? [L2('Oda No', '№ или Название комнаты')] : []).concat(its.map(function (it) { return it.door ? L2('Kapı No', 'Марка или № Двери') : it.name; }));
+      if (OPD) head.push(SM_OPW, SM_OPH);
       ws.addRow(head).font = { bold: true, name: 'Times New Roman' };
       sh.rows.slice().sort(function (a, b) { return (smKatKey(b.kat) - smKatKey(a.kat)) || (a.r - b.r); }).forEach(function (row) {
         const vals = [row.blok].concat(v.hideKat ? [] : [row.kat == null ? '' : row.kat]).concat(showRoom ? [row.room || ''] : []);
         its.forEach(function (it) { vals.push(it.door ? row.mirka : (smApplicable(sh, row, it) ? smNeed(sh, row, it) : '—')); });
+        if (OPD) { const o = OPD[si + '|' + row.r] || {}; vals.push(o.w || '', o.h || ''); }
         const r = ws.addRow(vals); const off = (v.hideKat ? 2 : 3) + (showRoom ? 1 : 0);
         its.forEach(function (it, i) { if (smApplicable(sh, row, it) && smDone(sh, row, it)) r.getCell(off + i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SM_GREEN } }; });
       });
@@ -1935,20 +1940,23 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     const cur = smCurRows(); if (!cur) { $('sm-scroll').innerHTML = ''; return; }
     const sh = cur.sh, si = cur.si;
     const showRoom = !!sh.roomCol && smRoomVisible();
+    const OPD = opGrid();
     const nCols = smVisItems(sh).length + (showRoom ? 1 : 0);
     let h = '<table class="sm-table' + (nCols <= 3 ? ' narrow' : '') + '"><thead><tr><th class="kat">' + escapeHtml(t('sm_kat')) + '</th>' + (showRoom ? '<th class="room">' + escapeHtml(L2('Oda', 'Комната')) + '</th>' : '') +
       smVisItems(sh).map(function (it) { const n = smCountCol(si, cur.blok, it.col);
         return '<th>' + smHeadHtml(it) + '<small data-col="' + it.col + '">' + (n ? n + ' ' + escapeHtml(t('sm_selected')) : '') + '</small></th>'; }).join('') +
+      (OPD ? '<th class="op">' + escapeHtml(L2('Boşluk G, mm', 'Шир. проёма, мм')) + '</th><th class="op">' + escapeHtml(L2('Boşluk Y, mm', 'Выс. проёма, мм')) + '</th>' : '') +
       '</tr></thead><tbody>';
     let prevKat = null;
     cur.rows.forEach(function (row) {
       h += '<tr' + (' class="' + (row.kat !== prevKat && prevKat !== null ? 'fl-first ' : '') + (row.rev ? 'rev' : '') + '"') + ' data-r="' + row.r + '"><td class="kat" data-r="' + row.r + '">' + escapeHtml(row.kat == null ? '' : row.kat) + '</td>' + (showRoom ? '<td class="room">' + escapeHtml(row.room || '') + '</td>' : '') +
-        smVisItems(sh).map(function (it) { return smCellHtml(si, sh, row, it); }).join('') + '</tr>';
+        smVisItems(sh).map(function (it) { return smCellHtml(si, sh, row, it); }).join('') +
+        (OPD ? (function () { const o = OPD[si + '|' + row.r] || {}; return '<td class="op">' + escapeHtml(o.w || '') + '</td><td class="op">' + escapeHtml(o.h || '') + '</td>'; })() : '') + '</tr>';
       prevKat = row.kat;
     });
     const cx = (sh.cancelled || []).filter(function (x) { return x.blok === cur.blok; });
     if (cx.length) {
-      const ncol = 1 + (showRoom ? 1 : 0) + smVisItems(sh).length;
+      const ncol = 1 + (showRoom ? 1 : 0) + smVisItems(sh).length + (OPD ? 2 : 0);
       h += '<tr class="cx-h"><td colspan="' + ncol + '">' + escapeHtml(L2('İPTAL EDİLENLER', 'ОТМЕНЁННЫЕ')) + ' (' + cx.length + ')</td></tr>';
       cx.forEach(function (row) {
         h += '<tr class="cx' + (row.marked ? ' cxm' : '') + '"><td>' + escapeHtml(row.kat == null ? '' : row.kat) + '</td><td colspan="' + (ncol - 1) + '"><s>' + escapeHtml(row.mirka) + '</s> · ' + escapeHtml(L2('İPTAL', 'ОТМЕНА')) +
@@ -4013,6 +4021,18 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
   }
   async function smDownload() {
     if (!smWb) return;
+    try {
+      const OPD = await opRowDims(smProj, smSheets, true);
+      if (OPD) smSheets.forEach(function (sh, si) {
+        const ws = sh.ws, hr = ws.getRow(sh.hr); let cw = 0, ch = 0, last = 0;
+        hr.eachCell({ includeEmpty: false }, function (c, col) { const x = smTxt(smVal(c)); last = Math.max(last, col); if (x === SM_OPW) cw = col; if (x === SM_OPH) ch = col; });
+        const st = smClone(hr.getCell(sh.cM).style);
+        if (!cw) { cw = ++last; hr.getCell(cw).value = SM_OPW; hr.getCell(cw).style = st; ws.getColumn(cw).width = 14; }
+        if (!ch) { ch = ++last; hr.getCell(ch).value = SM_OPH; hr.getCell(ch).style = smClone(st); ws.getColumn(ch).width = 14; }
+        if (sh.lastCol) sh.lastCol = Math.max(sh.lastCol, cw, ch);
+        (sh.allRows || sh.rows).forEach(function (row) { const o = OPD[si + '|' + row.r] || {}; const r = ws.getRow(row.r); r.getCell(cw).value = o.w || null; r.getCell(ch).value = o.h || null; });
+      });
+    } catch (e) {}
     const buf = await smWb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -4183,6 +4203,42 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       });
     });
     return L;
+  }
+  // ── Размеры проёма (stage3h): замер в карточке двери на карте → колонки шахматки ──
+  const SM_OPW = 'Ширина проёма, мм', SM_OPH = 'Высота проёма, мм';
+  const opSrv = {};
+  function opLocal(main) { try { return JSON.parse(localStorage.getItem('icon-map-' + main + '-marks') || '{}') || {}; } catch (e) { return {}; } }
+  async function opMarks(main, fresh) {
+    let srv = (opSrv[main] && opSrv[main].m) || {};
+    if (navigator.onLine && serverUrl() && pin && (fresh || !opSrv[main] || Date.now() - opSrv[main].t > 60000)) {
+      try { const j = await api(null, 'a=mk&k=' + encodeURIComponent(main) + '&token=' + encodeURIComponent(pin)); if (j && j.ok && j.marks) { srv = j.marks; opSrv[main] = { t: Date.now(), m: srv }; } } catch (e) {}
+    }
+    const out = {};
+    [srv, opLocal(main)].forEach(function (src) { Object.keys(src).forEach(function (id) { const o = src[id] && src[id].op; if (!o) return; if (!out[id] || (o.t || 0) > (out[id].t || 0)) out[id] = o; }); });
+    return out;
+  }
+  // 'si|строка' → {w,h} для листов shs; null — у объекта нет карты
+  async function opRowDims(k, shs, fresh) {
+    const main = String(k || '').split('.')[0];
+    if (!main || !shs || !shs.length || !mpMeta()[main]) return null;
+    let map; try { map = await mpData(main); } catch (e) { return null; }
+    const L = mpLink(map, shs), ops = await opMarks(main, fresh), out = {};
+    Object.keys(L.door).forEach(function (id) { const o = ops[id]; if (o && (o.w || o.h)) out[L.door[id].si + '|' + L.door[id].row.r] = { w: o.w || '', h: o.h || '' }; });
+    return out;
+  }
+  const OPG = { k: '', at: 0, busy: false, dims: null, sig: '' };
+  function opGrid() {
+    const main = String(smProj || '').split('.')[0];
+    if (!main || !mpMeta()[main]) return null;
+    if ((OPG.k !== smProj || Date.now() - OPG.at > 30000) && !OPG.busy) {
+      OPG.busy = true; const k = smProj, shs = smSheets;
+      opRowDims(k, shs, false).then(function (d) {
+        OPG.busy = false; OPG.at = Date.now();
+        const sig = JSON.stringify(d || {});
+        if (k === smProj && (OPG.k !== k || sig !== OPG.sig)) { OPG.k = k; OPG.dims = d || {}; OPG.sig = sig; try { if ($('sm-page').classList.contains('open')) smRenderGrid(); } catch (e) {} }
+      }).catch(function () { OPG.busy = false; });
+    }
+    return OPG.k === smProj ? (OPG.dims || {}) : {};
   }
   function mpLinkOf(id) { if (!MPL || MPL.sheets !== smSheets) { if (!ICONMAP.data) return null; MPL = mpLink(ICONMAP.data); } return MPL.door[id] || null; }
   function mpDoorItem(sh) { return sh.items.find(function (i) { return i.door; }); }
