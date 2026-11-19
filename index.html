@@ -63,7 +63,7 @@
   .topbar .title { font-size: 13px; color: var(--on-dark-soft); margin-top: 6px; letter-spacing: 0.01em; }
   .lang-toggle {
     position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-    display: flex; border: 1px solid var(--line-soft); border-radius: 999px; overflow: hidden;
+    display: flex; border: 1px solid var(--line-soft); border-radius:6px; overflow: hidden;
   }
   .lang-toggle button {
     background: transparent; border: none; color: var(--on-dark-soft);
@@ -107,7 +107,7 @@
   .who-bar b { color: var(--on-dark); font-weight: 700; }
   .who-bar button {
     background: transparent; border: 1px solid var(--line-soft); color: var(--on-dark);
-    border-radius: 999px; padding: 5px 11px; font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap;
+    border-radius:6px; padding: 5px 11px; font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap;
   }
   body.need-who .who-screen { display: block; }
   body.need-who #report-form { display: none; }
@@ -206,7 +206,7 @@
 #tm-head{display:flex;align-items:center;gap:10px;padding:16px 18px 10px;border-bottom:1px solid #E3E8EF}
 #tm-head b{font-size:17px;color:#2D2D40;flex:1}
 #tm-head span{font-size:12px;color:#556A7B}
-#tm-head button{padding:7px 14px;border-radius:999px;border:1px solid #C5CED8;background:#fff;color:#2D2D40;font-weight:600;cursor:pointer}
+#tm-head button{padding:7px 14px;border-radius:6px;border:1px solid #C5CED8;background:#fff;color:#2D2D40;font-weight:600;cursor:pointer}
 #tm-sum{padding:8px 18px;font-size:13px;color:#556A7B;display:flex;gap:14px;flex-wrap:wrap}
 #tm-list{overflow:auto;padding:4px 10px 14px}
 .tm-r{display:flex;gap:10px;align-items:flex-start;padding:10px 8px;border-bottom:1px solid #F0F3F7}
@@ -245,7 +245,7 @@
   .pj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
   .pj-t{font-size:14px;font-weight:700}.pj-s{font-size:12px;color:var(--on-dark-soft);margin-top:2px}
   .pj-btns{display:flex;gap:8px}
-  .pj-b{background:transparent;border:1px solid var(--line-soft);color:var(--on-dark);border-radius:999px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .pj-b{background:transparent;border:1px solid var(--line-soft);color:var(--on-dark);border-radius:6px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
   .pj-b:hover{background:rgba(255,255,255,.12)}
   .pj-b.danger{color:#ffb4a8;border-color:rgba(255,180,168,.5)}
   .pj-b.solid{background:#fff;color:var(--paper-deep);border-color:#fff}
@@ -255,9 +255,9 @@
   .pj-n{font-size:14px;font-weight:700}.pj-m{font-size:12px;color:var(--on-dark-soft);margin-left:6px}
   .pj-q{font-size:12px;color:#ffb4a8;margin-right:4px}
   .pj-empty{font-size:13px;color:var(--on-dark-soft);padding:8px 0}
-  .mp-ac{border-radius:999px;padding:5px 12px;border-color:#c9d1dc;background:#f4f6f9;color:#1b2a3d}
-  .mp-bar label{border-radius:999px}
-  #mp-modes b{display:inline-block;background:#fff;color:var(--paper-deep);border-radius:999px;padding:4px 12px;margin-right:10px}
+  .mp-ac{border-radius:6px;padding:5px 12px;border-color:#c9d1dc;background:#f4f6f9;color:#1b2a3d}
+  .mp-bar label{border-radius:6px}
+  #mp-modes b{display:inline-block;background:#fff;color:var(--paper-deep);border-radius:6px;padding:4px 12px;margin-right:10px}
   .mp-grid{border-radius:12px}
   .mp-grid th{background:#f1f3f6;color:#4a5668;font-weight:700}
   .mp-grid td,.mp-grid th{border-color:#e3e7ec}
@@ -328,9 +328,9 @@
   .mp-spin{width:34px;height:34px;border-radius:50%;border:3px solid #C5CED8;border-top-color:#2D2D40;animation:mpSp 0.9s linear infinite}
   @keyframes mpSp{to{transform:rotate(360deg)}}
   .mp-adm{margin:8px 2px 0;font-size:13px;color:#556A7B;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .mp-adm button{font:inherit;font-size:13px;background:transparent;border:1px dashed #7E9BB3;color:#2D2D40;border-radius:9999px;padding:6px 14px;cursor:pointer}
+  .mp-adm button{font:inherit;font-size:13px;background:transparent;border:1px dashed #7E9BB3;color:#2D2D40;border-radius:6px;padding:6px 14px;cursor:pointer}
   .sm-top{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line-soft);background:var(--paper)}
-  .sm-top button{background:transparent;border:1px solid var(--line-soft);color:var(--on-dark);border-radius:999px;padding:8px 14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  .sm-top button{background:transparent;border:1px solid var(--line-soft);color:var(--on-dark);border-radius:6px;padding:8px 14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
   .sm-top button.ok{background:#fff;color:var(--paper-deep);border-color:#fff}
   .sm-top select{padding:9px 30px 9px 12px;font-size:15px;font-weight:700}
   .sm-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;padding:8px 12px 4px;font-size:11.5px;color:var(--on-dark-soft)}
@@ -339,7 +339,7 @@
   .sm-legend i.done{background:#d5dae0;border-color:#c2c9d1}
   .sm-legend i.undo{background:#fdecea;border-color:#f1b4ab}
   .sm-tip{text-align:center;font-size:11px;color:var(--on-dark-soft);padding:0 12px 8px}
-  .sm-mode{display:flex;border:1px solid var(--line-soft);border-radius:999px;overflow:hidden;margin-bottom:10px}
+  .sm-mode{display:flex;border:1px solid var(--line-soft);border-radius:6px;overflow:hidden;margin-bottom:10px}
   .sm-mode button{flex:1;background:transparent;border:none;color:var(--on-dark-soft);font-size:13px;font-weight:700;padding:9px 6px;cursor:pointer}
   .sm-mode button.active{background:#fff;color:var(--paper-deep)}
   body.sm-teslim .sm-mode button.active{background:#e2b64a;color:#1d1400}
@@ -680,7 +680,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   .topbar{background:var(--graphite)!important;border-bottom:0!important;box-shadow:var(--sh2)}
   .topbar .logo{filter:brightness(0) invert(1)!important}
   .topbar .title{color:var(--eyebrow)!important;text-transform:uppercase;letter-spacing:1.4px;font-size:11px!important;font-weight:600}
-  .topbar .lang-dd .ld-cur{background:transparent!important;color:#fff!important;border:1px solid rgba(255,255,255,.24)!important;border-radius:9999px!important;font-weight:600!important;font-size:13px!important}
+  .topbar .lang-dd .ld-cur{background:transparent!important;color:#fff!important;border:1px solid rgba(255,255,255,.24)!important;border-radius:6px!important;font-weight:600!important;font-size:13px!important}
   .topbar .lang-dd .ld-cur i{color:#fff}
   #role-tag{background:var(--graphite-2)!important;color:var(--eyebrow)!important;font-size:10.5px!important;font-weight:600!important;letter-spacing:1.4px!important;text-transform:uppercase;padding:4px 10px!important}
 
@@ -693,14 +693,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* поля */
   input,select,textarea{border:1px solid var(--field)!important;border-radius:6px!important;background:#fff!important;color:var(--ink2)!important;box-shadow:none!important}
   input:focus,select:focus,textarea:focus{outline:2px solid var(--blue)!important;outline-offset:-1px;border-color:var(--blue)!important;box-shadow:none!important}
-  .who-screen input,.who-screen select{border-radius:9999px!important;padding-left:18px!important}
+  .who-screen input,.who-screen select{border-radius:6px!important;padding-left:18px!important}
   .who-screen #who-pin{letter-spacing:.3em}
   .who-screen #who-pin:placeholder-shown{letter-spacing:0!important}
   .who-screen input::placeholder{letter-spacing:0!important;color:#8A97A6!important;opacity:1}
   .who-screen #srv-url,.who-screen #who-login{letter-spacing:0!important}
 
   /* кнопки: по умолчанию «flat» — белая таблетка */
-  button,.sm-open,button.submit,.pj-b,.pj-b.solid,.pj-b.danger,.sm-top button,.sm-top button.ok,.sm-mode button,.lang-toggle button,.who-bar button,.success-screen button,.sm-modal .btns button,.sm-modal .btns button.ok,.sm-modal .box .btns button.ok,.mp-ac,.mp-bar label,.sm-dl,#mp-modes button{background:#fff!important;color:var(--ink2)!important;border:1px solid var(--line)!important;box-shadow:none!important;border-radius:9999px!important;font-weight:500;transition:background .12s,border-color .12s,color .12s,box-shadow .12s}
+  button,.sm-open,button.submit,.pj-b,.pj-b.solid,.pj-b.danger,.sm-top button,.sm-top button.ok,.sm-mode button,.lang-toggle button,.who-bar button,.success-screen button,.sm-modal .btns button,.sm-modal .btns button.ok,.sm-modal .box .btns button.ok,.mp-ac,.mp-bar label,.sm-dl,#mp-modes button{background:#fff!important;color:var(--ink2)!important;border:1px solid var(--line)!important;box-shadow:none!important;border-radius:6px!important;font-weight:500;transition:background .12s,border-color .12s,color .12s,box-shadow .12s}
   button:hover,.pj-b:hover,.sm-top button:hover{border-color:var(--steel-lt)!important;background:var(--bg)!important}
   button:focus-visible{outline:2px solid var(--blue)!important;outline-offset:2px}
   /* главное действие — графит */
@@ -711,8 +711,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   .pj-b.danger{color:var(--bad-b)!important;border-color:var(--bad-f)!important}
   /* переключатели (режим, язык, выбор) — включённый: --ref + графит */
   .sm-mode button.active,.lang-toggle button.active,body.sm-teslim .sm-mode button.active,.sm-modal .box .mp-bar label.on,.mp-ac.on,.lp-b button.active{background:var(--ref)!important;color:var(--graphite)!important;border-color:var(--blue)!important;font-weight:600!important;box-shadow:none!important}
-  .sm-mode,.lang-toggle{background:#fff;border-radius:9999px}
-  .lang-dd button{border-radius:9999px!important;background:#fff!important;border:1px solid var(--line)!important;font-weight:600!important}
+  .sm-mode,.lang-toggle{background:#fff;border-radius:6px}
+  .lang-dd button{border-radius:6px!important;background:#fff!important;border:1px solid var(--line)!important;font-weight:600!important}
   .lang-dd .ld-menu{border:1px solid var(--soft)!important;border-radius:14px!important;box-shadow:var(--sh3)!important}
   .lang-dd .ld-menu button{border-radius:8px!important;border:0!important}
   .lang-dd .ld-menu button:hover,.lang-dd .ld-menu button.active{background:var(--bg)!important}
@@ -727,7 +727,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   .work-check:checked{background:var(--steel)!important;border-color:var(--steel)!important}
   .stat{background:var(--bg)!important;border-radius:10px!important;border:1px solid var(--soft)!important}
   .stat.kalan.over{background:var(--bad-f)!important;border-color:var(--bad-b)!important}
-  .who-bar{background:#fff;border:1px solid var(--soft);border-radius:9999px;padding:6px 8px 6px 14px!important;box-shadow:var(--sh1)}
+  .who-bar{background:#fff;border:1px solid var(--soft);border-radius:6px;padding:6px 8px 6px 14px!important;box-shadow:var(--sh1)}
 
   /* сообщения */
   .status.show{border-radius:10px!important;border:1px solid var(--soft)!important;border-left-width:4px!important;background:#fff!important;color:var(--ink2)!important;box-shadow:var(--sh1)}
@@ -793,14 +793,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 /* ── мастер «Что взять из файла?»: компактно, таблица на всю высоту (2026-11-16) ── */
 #mp-modal .box.mp-box{max-width:min(1500px,98vw)!important;width:98vw!important;height:95vh!important;max-height:95vh!important;padding:12px 16px!important}
 #mp-modal #mp-modes .mp-steps,#mp-modal .mp-steps{display:flex!important;flex-wrap:wrap!important;justify-content:center!important;gap:4px!important;max-width:none!important;margin:2px 0 4px!important}
-#mp-modal #mp-modes .mp-stb,#mp-modal .mp-stb{flex-direction:row!important;align-items:center!important;gap:6px!important;padding:3px 12px 3px 4px!important;border-width:1px!important;border-radius:9999px!important;transform:none!important;box-shadow:none!important;animation:none!important;min-height:0!important}
+#mp-modal #mp-modes .mp-stb,#mp-modal .mp-stb{flex-direction:row!important;align-items:center!important;gap:6px!important;padding:3px 12px 3px 4px!important;border-width:1px!important;border-radius:6px!important;transform:none!important;box-shadow:none!important;animation:none!important;min-height:0!important}
 #mp-modal #mp-modes .mp-stb i,#mp-modal .mp-stb i{width:20px!important;height:20px!important;line-height:18px!important;font-size:11px!important}
 #mp-modal #mp-modes .mp-stb b,#mp-modal .mp-stb b{font-size:13px!important;line-height:1.2!important}
 #mp-modal #mp-modes .mp-stb small,#mp-modal .mp-stb small{display:none!important}
 #mp-modal #mp-modes .mp-stb.cur,#mp-modal .mp-stb.cur{border:2px solid #2D2D40!important}
 #mp-modal #mp-roomq .rq-t,#mp-modal .rq-t{font-size:15px!important;margin:4px 0 6px!important;text-align:center}
 #mp-modal #mp-roomq .rq-b,#mp-modal .rq-b{gap:8px!important}
-#mp-modal #mp-roomq .rq-b button,#mp-modal .rq-b button{font-size:14px!important;padding:6px 22px!important;min-width:80px!important;border-radius:9999px!important}
+#mp-modal #mp-roomq .rq-b button,#mp-modal .rq-b button{font-size:14px!important;padding:6px 22px!important;min-width:80px!important;border-radius:6px!important}
 #mp-modal #mp-roomq .rq-b button.sel,#mp-modal .rq-b button.sel{box-shadow:0 0 0 2px #2D2D40!important}
 #mp-modal #mp-roomq .rq-s,#mp-modal .rq-s{font-size:13px!important;margin:4px 0 0!important;text-align:center}
 #mp-modal .mp-grid{flex:1 1 auto!important;min-height:40vh!important;margin-top:6px}
@@ -4689,7 +4689,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     if (!a.length) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('div'); b.id = 'dr-old'; b.style.cssText = 'background:#EEF3FA;border:1px solid #C9D6E8;color:#2D2D40;border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:13.5px'; drPlace(b); }
     b.innerHTML = '<b>' + escapeHtml(L2('Ertelenen gönderilmemiş raporlar:', 'Отложенные неотправленные отчёты:')) + '</b> ' +
-      a.map(function (d, i) { return '<button type="button" data-i="' + i + '" style="margin:4px 6px 0 0;padding:4px 10px;border-radius:999px;border:1px solid #9FB3CC;background:#fff;font-size:13px;font-weight:600;cursor:pointer">' + escapeHtml(drFmt(d.date) + (d.saha ? ' · ' + d.saha : '')) + '</button>'; }).join('');
+      a.map(function (d, i) { return '<button type="button" data-i="' + i + '" style="margin:4px 6px 0 0;padding:4px 10px;border-radius:6px;border:1px solid #9FB3CC;background:#fff;font-size:13px;font-weight:600;cursor:pointer">' + escapeHtml(drFmt(d.date) + (d.saha ? ' · ' + d.saha : '')) + '</button>'; }).join('');
     b.querySelectorAll('button[data-i]').forEach(function (x) { x.onclick = function () { const L = drOldGet(), k = +x.dataset.i; if (L[k]) drAsk(L[k], k); }; });
   }
   function drAsk(d, oldIdx) {
@@ -4698,7 +4698,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     const mgr = drIsMgr(), old = oldIdx != null;
     const o = document.createElement('div');
     o.id = 'dr-ask'; o.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,40,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-    const bs = 'padding:10px 16px;border-radius:999px;font-weight:700;cursor:pointer;';
+    const bs = 'padding:10px 16px;border-radius:6px;font-weight:700;cursor:pointer;';
     o.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)">' +
       '<div style="font-size:17px;font-weight:700;margin-bottom:8px;color:#2D2D40">' + escapeHtml(L2('Gönderilmemiş rapor', 'Неотправленный отчёт')) + '</div>' +
       '<div style="font-size:14px;color:#556A7B;margin-bottom:16px">' + escapeHtml(L2('Gönderilmemiş rapor var: ', 'Не отправлен отчёт за ') + drFmt(d.date) + (d.saha ? ' · ' + d.saha : '') + '. ' +
@@ -4895,7 +4895,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
 </script>
 
 <div id="upd-bar" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:100000;background:#2D2D40;color:#fff;border-radius:14px;padding:10px 12px 10px 16px;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);font:14px system-ui,sans-serif">
-<span style="flex:1">Yeni sürüm hazır · Новая версия готова</span><button type="button" onclick="location.reload()" style="background:#fff;color:#2D2D40;border:0;border-radius:999px;padding:8px 16px;font-weight:700">↻ OK</button></div>
+<span style="flex:1">Yeni sürüm hazır · Новая версия готова</span><button type="button" onclick="location.reload()" style="background:#fff;color:#2D2D40;border:0;border-radius:6px;padding:8px 16px;font-weight:700">↻ OK</button></div>
 <script>
 (function () {
   if (!('serviceWorker' in navigator) || location.protocol !== 'https:') return;
