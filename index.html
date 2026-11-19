@@ -200,6 +200,21 @@
     background: transparent; border: 1.5px solid var(--line-soft); color: var(--on-dark);
     border-radius: var(--radius); padding: 11px 20px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
   }
+
+#tm-ov{position:fixed;inset:0;background:rgba(20,28,40,.55);z-index:99990;display:flex;align-items:center;justify-content:center;padding:14px}
+#tm-box{background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+#tm-head{display:flex;align-items:center;gap:10px;padding:16px 18px 10px;border-bottom:1px solid #E3E8EF}
+#tm-head b{font-size:17px;color:#2D2D40;flex:1}
+#tm-head span{font-size:12px;color:#556A7B}
+#tm-head button{padding:7px 14px;border-radius:999px;border:1px solid #C5CED8;background:#fff;color:#2D2D40;font-weight:600;cursor:pointer}
+#tm-sum{padding:8px 18px;font-size:13px;color:#556A7B;display:flex;gap:14px;flex-wrap:wrap}
+#tm-list{overflow:auto;padding:4px 10px 14px}
+.tm-r{display:flex;gap:10px;align-items:flex-start;padding:10px 8px;border-bottom:1px solid #F0F3F7}
+.tm-dot{width:11px;height:11px;border-radius:50%;margin-top:5px;flex:none;background:#C5CED8}
+.tm-dot.on{background:#2EA44F;box-shadow:0 0 0 3px #D7F2DF}.tm-dot.day{background:#E3A008}
+.tm-m{flex:1;min-width:0}.tm-n{font-weight:700;color:#2D2D40;font-size:14.5px}.tm-n small{font-weight:400;color:#8A97A6;margin-left:6px}
+.tm-d{font-size:12.5px;color:#556A7B;margin-top:2px}.tm-d .w{color:#B45309;font-weight:600}
+.tm-x{text-align:right;font-size:12.5px;color:#556A7B;flex:none;min-width:118px}.tm-x .ok{color:#1E6B3A;font-weight:700}.tm-x .no{color:#B42318;font-weight:600}
 </style>
 <style>
   .test-banner{background:#b7860b;color:#fff;text-align:center;font-size:12px;font-weight:700;padding:6px 10px;font-family:-apple-system,Segoe UI,Roboto,sans-serif}
@@ -836,7 +851,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="hint" id="saha-hint"></div>
       </div>
 
-    <div class="pj-card" style="margin:0 0 14px"><div class="pj-head"><div><div class="pj-t" id="sm-add-title">Şahmat projeleri</div><div class="pj-s" id="pj-sub">Yeni proje ekle veya mevcutları yönet</div></div><div class="pj-btns"><button type="button" class="pj-b" id="sm-add">Proje ekle</button><button type="button" class="pj-b" id="sm-mng">Projeleri yönet</button><button type="button" class="pj-b" id="sm-assign">Proje ata</button><button type="button" class="pj-b" id="ob-btn">Nesneler</button><button type="button" class="pj-b" id="srv-dl" style="display:none">Uygulama dosyası</button><button type="button" class="pj-b" id="mj-btn" style="display:none">Montajcı dosyası</button></div></div><input type="file" id="sm-file" accept=".xlsx" style="display:none"><input type="file" id="sm-file-edit" accept=".xlsx" style="display:none"><div id="sm-file-name" class="pj-s"></div><div id="sm-proj-list" class="pj-list" style="display:none"></div></div>
+    <div class="pj-card" style="margin:0 0 14px"><div class="pj-head"><div><div class="pj-t" id="sm-add-title">Şahmat projeleri</div><div class="pj-s" id="pj-sub">Yeni proje ekle veya mevcutları yönet</div></div><div class="pj-btns"><button type="button" class="pj-b" id="sm-add">Proje ekle</button><button type="button" class="pj-b" id="sm-mng">Projeleri yönet</button><button type="button" class="pj-b" id="sm-assign">Proje ata</button><button type="button" class="pj-b" id="ob-btn">Nesneler</button><button type="button" class="pj-b" id="tm-btn" style="display:none">Ekip</button><button type="button" class="pj-b" id="srv-dl" style="display:none">Uygulama dosyası</button><button type="button" class="pj-b" id="mj-btn" style="display:none">Montajcı dosyası</button></div></div><input type="file" id="sm-file" accept=".xlsx" style="display:none"><input type="file" id="sm-file-edit" accept=".xlsx" style="display:none"><div id="sm-file-name" class="pj-s"></div><div id="sm-proj-list" class="pj-list" style="display:none"></div></div>
 
       <div class="field">
         <label for="tarih" data-i18n="date">Tarih</label>
@@ -4279,6 +4294,73 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     m.box.querySelector('#ob-close').onclick = async function () { m.o.remove(); if (changed) { try { await loadSahalar(); } catch (e) {} } };
   }
   $('ob-btn').addEventListener('click', obOpen);
+  // ── Команда (stage3g): присутствие и список для руководителя ──
+  var hbOff = false, hbLast = 0;
+  function hbScreen() {
+    try {
+      if ($('mp-page').classList.contains('open')) return 'map';
+      if ($('sm-page').classList.contains('open')) return 'sahmat';
+      if ($('success-screen').classList.contains('show')) return 'sent';
+    } catch (e) {}
+    return 'report';
+  }
+  function hbUnsent() { try { const sm = smCollect(); return Object.keys(sm).reduce(function (a, k) { return a + (Array.isArray(sm[k]) ? sm[k].length : 0); }, 0); } catch (e) { return 0; } }
+  async function hbSend(force) {
+    if (hbOff || !reporter || !pin || document.hidden || !navigator.onLine || !serverUrl()) return;
+    const now = Date.now(); if (!force && now - hbLast < 110000) return; if (force && now - hbLast < 15000) return;
+    hbLast = now;
+    try {
+      const q = 'a=hb&token=' + encodeURIComponent(pin) + '&s=' + encodeURIComponent(sahaInput.value.trim()) + '&sc=' + hbScreen() + '&un=' + hbUnsent() + '&ob=' + getOutbox().length;
+      const j = await api(null, q);
+      if (j && j.ok && !j.hb) hbOff = true;   // сервер ещё старый — не нагружаем
+    } catch (e) {}
+  }
+  setInterval(function () { hbSend(false); }, 30000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) hbSend(true); });
+  ['mp-open-btn', 'sm-open-btn'].forEach(function (id) { const b = $(id); if (b) b.addEventListener('click', function () { setTimeout(function () { hbSend(true); }, 1500); }); });
+  setTimeout(function () { hbSend(true); }, 4000);
+
+  function tmBtn() { const b = $('tm-btn'); if (!b) return; b.style.display = mpIsMgr() ? '' : 'none'; b.textContent = L2('Ekip', 'Команда'); }
+  setInterval(tmBtn, 3000); setTimeout(tmBtn, 500);
+  let tmTimer = null;
+  function tmClose() { const o = $('tm-ov'); if (o) o.remove(); if (tmTimer) { clearInterval(tmTimer); tmTimer = null; } }
+  function tmHM(t) { const d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function tmDM(t) { const d = new Date(t); return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + ' ' + tmHM(t); }
+  function tmScr(sc) { return { map: L2('haritada', 'на карте'), sahmat: L2('şahmatta', 'в шахматке'), report: L2('raporda', 'в отчёте'), sent: L2('rapor gönderildi', 'отчёт отправлен') }[sc] || ''; }
+  async function tmLoad() {
+    const box = $('tm-list'); if (!box) return;
+    let j; try { j = await api(null, 'a=who&token=' + encodeURIComponent(pin)); } catch (e) { $('tm-sub').textContent = L2('Bağlantı yok', 'Нет связи'); return; }
+    if (!j || !j.ok || !j.list) { $('tm-sub').textContent = (j && j.error === 'forbidden') ? L2('Sadece yönetici', 'Только для руководителя') : L2('Sunucu güncellenmeli', 'Нужно обновить серверный скрипт'); return; }
+    const now = j.now || Date.now(), dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+    const st = function (x) { return x.t && now - x.t < 4 * 60000 ? 2 : (x.t && x.t >= dayStart.getTime() ? 1 : 0); };
+    const L = j.list.slice().sort(function (a, b) { return st(b) - st(a) || (b.t || 0) - (a.t || 0) || String(a.ru).localeCompare(String(b.ru)); });
+    const on = L.filter(function (x) { return st(x) === 2; }).length, day = L.filter(function (x) { return st(x) >= 1; }).length, rep = L.filter(function (x) { return x.rep; }).length;
+    $('tm-sum').innerHTML = '<span>🟢 ' + escapeHtml(L2('şimdi', 'сейчас')) + ': <b>' + on + '</b></span><span>🟡 ' + escapeHtml(L2('bugün girdi', 'заходили сегодня')) + ': <b>' + day + '</b></span><span>📄 ' + escapeHtml(L2('bugün rapor', 'отчёт сегодня')) + ': <b>' + rep + '</b> / ' + L.length + '</span>';
+    $('tm-sub').textContent = L2('güncellendi ', 'обновлено ') + tmHM(Date.now());
+    box.innerHTML = L.map(function (x) {
+      const s2 = st(x), nm = L2(x.tr, x.ru || x.tr);
+      const where = s2 ? [x.s, s2 === 2 ? tmScr(x.sc) : ''].filter(Boolean).join(' · ') : (x.sahalar || []).join(', ');
+      const warn = [];
+      if (s2 && x.un) warn.push(L2('gönderilmemiş işaret: ', 'не отправлено отметок: ') + x.un);
+      if (s2 && x.ob) warn.push(L2('kuyrukta rapor: ', 'отчётов ждут связи: ') + x.ob);
+      const seen = s2 === 2 ? '<span class="ok">' + escapeHtml(L2('çevrimiçi', 'в сети')) + '</span>' : (x.t ? escapeHtml(L2('görüldü ', 'был ') + (s2 ? tmHM(x.t) : tmDM(x.t))) : escapeHtml(L2('girmedi', 'не заходил')));
+      const rp = x.rep ? '<span class="ok">✓ ' + escapeHtml(L2('rapor ', 'отчёт ') + tmHM(x.rep.t)) + '</span>' : '<span class="no">' + escapeHtml(L2('rapor yok', 'отчёта нет')) + '</span>';
+      return '<div class="tm-r"><div class="tm-dot' + (s2 === 2 ? ' on' : s2 ? ' day' : '') + '"></div><div class="tm-m"><div class="tm-n">' + escapeHtml(nm) + '<small>' + escapeHtml((x.id || '') + (x.rol === 'Yönetici' ? ' · ' + L2('yönetici', 'руководитель') : '')) + '</small></div>' +
+        '<div class="tm-d">' + escapeHtml(where || '—') + (warn.length ? ' · <span class="w">' + escapeHtml(warn.join(' · ')) + '</span>' : '') + '</div></div>' +
+        '<div class="tm-x">' + seen + '<br>' + rp + '</div></div>';
+    }).join('') || '<div class="tm-d" style="padding:16px">' + escapeHtml(L2('Liste boş', 'Список пуст')) + '</div>';
+  }
+  function tmOpen() {
+    tmClose();
+    const o = document.createElement('div'); o.id = 'tm-ov';
+    o.innerHTML = '<div id="tm-box"><div id="tm-head"><b>' + escapeHtml(L2('Ekip', 'Команда')) + '</b><span id="tm-sub">' + escapeHtml(L2('yükleniyor…', 'загрузка…')) + '</span><button type="button" id="tm-ref">' + escapeHtml(L2('Yenile', 'Обновить')) + '</button><button type="button" id="tm-x">✕</button></div><div id="tm-sum"></div><div id="tm-list"></div></div>';
+    document.body.appendChild(o);
+    o.addEventListener('click', function (e) { if (e.target === o) tmClose(); });
+    $('tm-x').onclick = tmClose; $('tm-ref').onclick = tmLoad;
+    tmLoad(); tmTimer = setInterval(tmLoad, 30000);
+  }
+  $('tm-btn').addEventListener('click', tmOpen);
+
   // ── Gönder ──
 
   // ════════ Этап 2: шахматки на Google Диске ════════
@@ -4683,7 +4765,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       // Yapılan adetleri yerelde de güncelle (kalan hemen doğru görünsün)
       if (aktifPlan) items.forEach(function (it) { if (aktifPlan.items[it.id]) aktifPlan.items[it.id].yapilan += it.adet; });
       const smOzet = smApply(sm, data);
-      drClear();
+      drClear(); setTimeout(function () { hbLast = 0; hbSend(true); }, 1500);
       showSuccess(false, t('success_saved') + ' ' + ozet + smOzet);
       if (data.sm_k) setTimeout(smSyncAll, 300);
     } catch (err) {
