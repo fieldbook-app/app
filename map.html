@@ -61,6 +61,11 @@ header{position:sticky;top:0;z-index:5;background:var(--graphite);color:#fff;min
 #smhost table.smv td.undo::after{content:'✕ будет отменено';color:#8A3B39}
 #smhost .smh-hint{font-size:12px;color:var(--steel);margin-top:6px}
 .floors{display:flex;gap:6px;flex-wrap:wrap}
+#floors{flex-wrap:nowrap;align-items:center}
+.flnav{padding:5px 14px;font-size:20px;line-height:1.1}
+.flnav:disabled{opacity:.3;cursor:default;background:transparent}
+.flsel{font:inherit;font-weight:600;color:var(--graphite);background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%232D2D40' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 14px center;border:1px solid #fff;border-radius:var(--r-pill);padding:8px 38px 8px 18px;-webkit-appearance:none;appearance:none;cursor:pointer;min-width:140px;max-width:62vw}
+.flsel:focus{outline:2px solid var(--blue);outline-offset:1px}
 .sync{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--eyebrow);border:1px solid rgba(255,255,255,.18);border-radius:var(--r-pill);padding:5px 12px}
 .sync i{width:8px;height:8px;border-radius:50%;background:#7F7F7F;flex:none}
 .sync.ok i{background:var(--st-ok-b)}.sync.wait i{background:var(--st-warn-t)}.sync.err i{background:var(--st-bad-b)}
@@ -339,12 +344,17 @@ const fb=document.getElementById('floors');
 const bb=document.getElementById('blds');
 const BLDS=[...new Set(FLOORS.map(f=>f.bld))];
 BLDS.forEach(n=>{const b=document.createElement('button');b.className='ghost';b.textContent=n;b.dataset.b=n;b.onclick=()=>showFloor(FLOORS.findIndex(f=>f.bld===n));bb.appendChild(b)});
-FLOORS.forEach((f,i)=>{const b=document.createElement('button');b.className='ghost';b.textContent=f.name;b.onclick=()=>showFloor(i);b.dataset.i=i;fb.appendChild(b)});
+fb.innerHTML='<button type="button" class="ghost flnav" id="flPrev" title="Этаж ниже" aria-label="Этаж ниже">‹</button><select id="flSel" class="flsel" aria-label="Этаж"></select><button type="button" class="ghost flnav" id="flNext" title="Этаж выше" aria-label="Этаж выше">›</button>';
+const flSel=document.getElementById('flSel'),flPrev=document.getElementById('flPrev'),flNext=document.getElementById('flNext');
+function flList(){return FLOORS.map((f,i)=>i).filter(i=>FLOORS[i].bld===F.bld).sort((a,b)=>((FLOORS[a].num??0)-(FLOORS[b].num??0))||a-b)}
+function flSync(i){const L=flList();flSel.innerHTML=L.map(j=>'<option value="'+j+'">'+esc(FLOORS[j].name)+'</option>').join('');flSel.value=String(i);const k=L.indexOf(i);flPrev.disabled=k<=0;flNext.disabled=k>=L.length-1;flSel.disabled=L.length<2}
+function flStep(d){const L=flList(),k=L.indexOf(FLOORS.indexOf(F));if(L[k+d]!=null)showFloor(L[k+d])}
+flSel.onchange=()=>showFloor(+flSel.value);flPrev.onclick=()=>flStep(-1);flNext.onclick=()=>flStep(1);
 const fl=f=>f.bld+' · '+f.name;
 
 function showFloor(i,keepView,keepSel){
   F=FLOORS[i]; if(!keepSel||(sel&&sel.t==='d'&&!F.doors.some(d=>d.id===sel.id)))sel=null;
-  [...fb.children].forEach(b=>{b.classList.toggle('on',+b.dataset.i===i);b.hidden=FLOORS[+b.dataset.i].bld!==F.bld});
+  flSync(i);
   [...bb.children].forEach(b=>b.classList.toggle('on',b.dataset.b===F.bld));
   document.getElementById('elevB').textContent=F.bld+' · отметка';
   document.getElementById('elevFl').textContent=F.name;
