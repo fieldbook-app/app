@@ -662,6 +662,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* stage3j: кнопки блока карты — углы как у полей */
   html body .mp-adm button{border-radius:6px!important}
 
+  /* stage3l: промежутки между кнопками */
+  html body .sm-mode{gap:8px;border:0!important;overflow:visible!important;background:transparent!important}
+  html body .sm-mode button{flex:1;border:1px solid #b8c0c9!important}
+  html body .sm-open+.sm-open,html body .sm-open+.mp-adm{margin-top:8px!important}
+  html body #rp-view{margin-top:8px!important}
+
   /* ===== ICON: фирменный стиль (светлая тема «Стандарт»). Перекрывает старые слои v26–v42. ===== */
   :root{
     --font:'Euclid Circular A','Inter','Segoe UI',system-ui,-apple-system,sans-serif;
