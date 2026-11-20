@@ -3279,6 +3279,71 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
     smToast(L2('Şahmat plandan oluşturuldu: ', 'Шахматка создана по плану: ') + b.n + ' ' + L2('kapı', 'дверей'));
     return true;
   }
+  // ── stage3m: досинхронизация шахматки «по плану» с картой ──
+  const SM_GONE_RE = /^Нет на карте/;
+  async function mkAll(main) {
+    let srv = {};
+    if (navigator.onLine && serverUrl() && pin) { try { const j = await api(null, 'a=mk&k=' + encodeURIComponent(main) + '&token=' + encodeURIComponent(pin)); if (j && j.ok && j.marks) srv = j.marks; } catch (e) {} }
+    let loc = {}; try { loc = JSON.parse(localStorage.getItem('icon-map-' + main + '-marks') || '{}') || {}; } catch (e) {}
+    const out = Object.assign({}, srv); Object.keys(loc).forEach(function (id) { if (!out[id] || ((loc[id] && loc[id].t) || 0) > ((out[id] && out[id].t) || 0)) out[id] = loc[id]; });
+    return out;
+  }
+  let smPlanSyncBusy = false;
+  async function smPlanSync(main, quiet) {
+    if (!main || smPlanSyncBusy || !mpIsMgr() || !smIsAdmin() || !mpMeta()[main]) return null;
+    const k = main, b64 = localStorage.getItem('sm_wb_' + k); if (!b64) return null;
+    if (getOutbox().some(function (d) { return d.sm_k === k; })) return null;   // сначала уйдут отчёты
+    smPlanSyncBusy = true;
+    try {
+      const act = smProj === k && smWb;
+      let wb = smWb; if (!act) { wb = new ExcelJS.Workbook(); await wb.xlsx.load(smUnB64(b64)); }
+      if (!smIsPlanWb(wb)) return null;
+      const map = await mpData(main), marks = await mkAll(main);
+      const want = {}, fl = {};
+      map.floors.forEach(function (f) { fl[f.id] = f; f.doors.forEach(function (d) { want[d.id] = { bld: f.bld || '', num: f.num, mark: d.mark || '', rooms: d.rooms || [] }; }); });
+      Object.keys(marks).forEach(function (id) { const a = marks[id] && marks[id].add; if (!a || a.del || !fl[a.f]) return; want[id] = { bld: fl[a.f].bld || '', num: fl[a.f].num, mark: a.mark || '', rooms: a.rooms || [], who: a.who || marks[id].who || '', custom: true }; });
+      const ws = wb.getWorksheet('ICON Şahmat') || wb.worksheets[0], h = smHdr(ws), cS = h['Источник'];
+      let last = 0; ws.getRow(1).eachCell({ includeEmpty: false }, function (c, col) { last = Math.max(last, col); });
+      let cR = h[SM_REV]; if (!cR) { cR = ++last; ws.getRow(1).getCell(cR).value = SM_REV; ws.getRow(1).getCell(cR).font = { bold: true }; ws.getColumn(cR).width = 34; }
+      const d0 = new Date(), dd = ('0' + d0.getDate()).slice(-2) + '.' + ('0' + (d0.getMonth() + 1)).slice(-2) + '.' + d0.getFullYear();
+      const have = {}; let lastRow = 1, nAdd = 0, nGone = 0, nBack = 0;
+      for (let r = 2; r <= ws.rowCount; r++) {
+        const v = smTxt(smVal(ws.getRow(r).getCell(cS))); if (v || smTxt(smVal(ws.getRow(r).getCell(4)))) lastRow = r;
+        const m = /^План!(.+)$/.exec(v); if (!m) continue; have[m[1]] = r;
+        const rc = ws.getRow(r).getCell(cR), rv = smTxt(smVal(rc));
+        if (!want[m[1]]) { if (!SM_GONE_RE.test(rv)) { rc.value = 'Нет на карте с ' + dd + ' — разобрать'; nGone++; } }
+        else if (SM_GONE_RE.test(rv)) { rc.value = null; nBack++; }
+      }
+      Object.keys(want).forEach(function (id) {
+        if (have[id]) return;
+        const w = want[id], row = ws.getRow(++lastRow);
+        const put = function (name, val) { if (h[name]) row.getCell(h[name]).value = val; };
+        put('Проект', k); put('Блок', w.bld); put('Этаж', w.num == null ? null : w.num); put(SM_DOOR_H, String(w.mark || 'Без марки').slice(0, 80));
+        put('Источник', 'План!' + id); put(SM_ROOM, w.rooms.join(' / '));
+        SM_PLAN_ACC.forEach(function (a) { put(a, 1); });
+        row.getCell(cR).value = w.custom ? 'Добавлена на объекте ' + dd + (w.who ? ' (' + w.who + ')' : '') : 'Новая на карте ' + dd;
+        nAdd++;
+      });
+      if (!nAdd && !nGone && !nBack) return { add: 0, gone: 0, back: 0 };
+      if (act) {
+        smSheets = smSubFilter(smParse(smWb), smProj);   // отметки (smSel) не трогаем: старые строки не сдвинулись
+        await smPersist(); smRenderSum();
+        try { if ($('sm-page').classList.contains('open')) smRenderGrid(); } catch (e) {}
+      } else {
+        const buf = await wb.xlsx.writeBuffer(); localStorage.setItem('sm_wb_' + k, smB64(buf));
+        const ix = smIdx(); let n = 0; for (let r = 2; r <= ws.rowCount; r++) if (smTxt(smVal(ws.getRow(r).getCell(4)))) n++;
+        ix[k] = Object.assign({}, ix[k], { n: n, ts: Date.now() }); localStorage.setItem('sm_projects', JSON.stringify(ix));
+      }
+      await smPushBase(k, false);
+      const R = { add: nAdd, gone: nGone, back: nBack };
+      if (!quiet || nAdd || nGone) smToast(L2('Plan şahmatı haritayla eşitlendi: ', 'Шахматка по плану сверена с картой: ') + smPlanSyncTxt(R));
+      return R;
+    } catch (e) { if (!quiet) smToast(L2('Eşitleme hatası: ', 'Ошибка сверки с картой: ') + e.message); return null; }
+    finally { smPlanSyncBusy = false; }
+  }
+  function smPlanSyncTxt(R) {
+    return [L2('yeni ', 'новых ') + R.add, L2('haritada yok ', 'нет на карте ') + R.gone].concat(R.back ? [L2('geri döndü ', 'вернулись ') + R.back] : []).join(', ');
+  }
   function smPlanAccMap(nh) {
     const heads = Object.keys(nh).filter(smIsAccHead), m = {};
     SM_PLAN_ACC.forEach(function (a) {
@@ -4187,6 +4252,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
       await MPDB.put('map_' + main, { ver: j.ver, data: o }); const m = mpMeta(); m[main] = j.ver; localStorage.setItem('mp_meta', JSON.stringify(m));
       msg.textContent = L2('Harita yüklendi (sürüm ', 'Карта загружена (версия ') + j.ver + ').'; mpBtn();
       if (!smHasAnyProj(main) && await smPlanCreate(main, true)) msg.textContent += ' ' + L2('Şahmat yok — plandan oluşturuldu.', 'Шахматки не было — создана по плану.');
+      else { const R = await smPlanSync(main, true); if (R) msg.textContent += ' ' + L2('Plan şahmatı: ', 'Шахматка по плану: ') + smPlanSyncTxt(R) + '.'; }
     } catch (e) { msg.textContent = L2('Hata: ', 'Ошибка: ') + (e.message === 'bad map' ? L2('bu bir harita dosyası değil', 'это не файл карты') : e.message); }
   });
   async function mpData(main) {
@@ -4310,7 +4376,7 @@ I18N.tr.pin_placeholder="PIN";I18N.ru.pin_placeholder="PIN-код";I18N.uz.pin_p
         else j = await api(null, 'a=mk&k=' + encodeURIComponent(k) + '&dev=' + encodeURIComponent(q.get('dev') || '') + '&token=' + encodeURIComponent(pin)); }
       return { ok: true, json: function () { return Promise.resolve(j); } };
     },
-    close: function () { $('mp-page').classList.remove('open'); document.body.style.overflow = ''; try { smRenderSum(); } catch (e) {} },
+    close: function () { $('mp-page').classList.remove('open'); document.body.style.overflow = ''; try { smRenderSum(); } catch (e) {} try { const m = mpMain(); if (m && mpIsMgr()) setTimeout(function () { smPlanSync(m, true); }, 2500); } catch (e) {} },
     ready: function (w) { ICONMAP.win = w; $('mp-load').hidden = true; mpPushOut(); }
   };
   window.ICONMAP = ICONMAP;
